@@ -16,8 +16,12 @@ NSInteger g_fpsLimit = 60;
 NSInteger g_language = 0;
 
 static void PlayToggleSound(BOOL isOn) {
-    SystemSoundID soundID = isOn ? 1103 : 1104;
-    AudioServicesPlaySystemSound(soundID);
+    @try {
+        SystemSoundID soundID = isOn ? 1103 : 1104;
+        AudioServicesPlaySystemSound(soundID);
+    } @catch (NSException *exception) {
+        // Игнорируем ошибки звука
+    }
 }
 
 // ============ ЛОКАЛИЗАЦИЯ ============
@@ -173,19 +177,19 @@ static NSString* L(NSString *key) {
 - (void)viewDidLoad {
     [super viewDidLoad];
     
-    // Минимальные настройки — ничего лишнего
+    // Безопасные настройки
     self.view.backgroundColor = [UIColor clearColor];
     self.view.opaque = NO;
-    self.view.userInteractionEnabled = NO;
-    self.modalPresentationStyle = UIModalPresentationOverCurrentContext;
+    self.modalPresentationStyle = UIModalPresentationOverFullScreen;
     
     self.config = [NSMutableDictionary dictionary];
     [self loadConfig];
     
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        [HooksManager installHooks];
-    });
+    // Хуки временно отключены для теста
+    // static dispatch_once_t onceToken;
+    // dispatch_once(&onceToken, ^{
+    //     [HooksManager installHooks];
+    // });
     
     [self buildLauncherButton];
     [self buildMenu];
@@ -193,7 +197,10 @@ static NSString* L(NSString *key) {
 }
 
 - (void)dealloc {
-    [self.displayLink invalidate];
+    if (self.displayLink) {
+        [self.displayLink invalidate];
+        self.displayLink = nil;
+    }
 }
 
 // ============ КНОПКА-ЛАУНЧЕР ============
@@ -514,7 +521,6 @@ static NSString* L(NSString *key) {
         self.menuCard.hidden = NO;
         self.menuCard.alpha = 0;
         self.launcherButton.hidden = YES;
-        self.view.userInteractionEnabled = YES;
         
         [UIView animateWithDuration:0.2 animations:^{
             self.menuCard.alpha = 1;
@@ -526,7 +532,6 @@ static NSString* L(NSString *key) {
             self.menuCard.hidden = YES;
             self.menuCard.alpha = 1;
             self.launcherButton.hidden = NO;
-            self.view.userInteractionEnabled = NO;
         }];
     }
 }
@@ -559,6 +564,8 @@ static NSString* L(NSString *key) {
 }
 
 - (void)tick:(CADisplayLink *)link {
+    if (!self.fpsLabel) return;
+    
     if (self.lastTimestamp == 0) {
         self.lastTimestamp = link.timestamp;
     }
@@ -646,7 +653,7 @@ static NSString* L(NSString *key) {
 // ============ ЭКСПОРТ ============
 UIViewController *Lucky77CreateMenuViewController(void) {
     L77MenuViewController *vc = [L77MenuViewController new];
-    vc.modalPresentationStyle = UIModalPresentationOverCurrentContext;
+    vc.modalPresentationStyle = UIModalPresentationOverFullScreen;
     return vc;
 }
 
@@ -655,15 +662,37 @@ void Lucky77PresentMenu(UIViewController *presenter) {
     [presenter presentViewController:Lucky77CreateMenuViewController() animated:NO completion:nil];
 }
 
-// ============ ТОЧКА ВХОДА (МИНИМАЛЬНАЯ) ============
+// ============ ТОЧКА ВХОДА (С ЛОГАМИ) ============
 __attribute__((constructor)) void init() {
-    // Просто ждём 2 секунды и пробуем показать меню
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-        UIWindow *window = [UIApplication sharedApplication].windows.firstObject;
+    NSLog(@"[Lucky77] ✅ INIT CALLED!");
+    
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+        UIWindow *window = nil;
+        
+        if (@available(iOS 13.0, *)) {
+            for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
+                if ([scene isKindOfClass:[UIWindowScene class]] && scene.activationState == UISceneActivationStateForegroundActive) {
+                    for (UIWindow *w in scene.windows) {
+                        if (w.isKeyWindow) {
+                            window = w;
+                            break;
+                        }
+                    }
+                    if (window) break;
+                }
+            }
+        }
+        
+        if (!window) {
+            window = [UIApplication sharedApplication].windows.firstObject;
+        }
+        
         UIViewController *root = window.rootViewController;
+        NSLog(@"[Lucky77] Found root: %@", root);
+        
         if (root) {
             Lucky77PresentMenu(root);
-            NSLog(@"[Lucky77] ✅ Menu injected!");
+            NSLog(@"[Lucky77] ✅ Menu presented!");
         } else {
             NSLog(@"[Lucky77] ❌ No root view controller");
         }
