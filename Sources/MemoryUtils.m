@@ -9,9 +9,12 @@
     for (uint32_t i = 0; i < count; i++) {
         const char *name = _dyld_get_image_name(i);
         if (name && (strstr(name, "Standoff2") != NULL || strstr(name, "standoff") != NULL)) {
-            return (uintptr_t)_dyld_get_image_vmaddr_slide(i);
+            uintptr_t base = (uintptr_t)_dyld_get_image_vmaddr_slide(i);
+            NSLog(@"[Lucky77] Found game: %s at base: 0x%lx", name, (unsigned long)base);
+            return base;
         }
     }
+    NSLog(@"[Lucky77] Game not found in loaded images");
     return 0;
 }
 
