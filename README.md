@@ -1,7 +1,7 @@
 # Lucky77 - Standoff 2 Cheat Framework (iOS)
 
 ## Сборка
-Проект автоматически собирается через GitHub Actions.  
+Автоматически собирается через GitHub Actions.  
 Скачай готовый `.dylib` из **Actions → Latest run → Artifacts**.
 
 ## Локальная сборка
