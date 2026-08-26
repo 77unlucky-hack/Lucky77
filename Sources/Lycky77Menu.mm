@@ -3,6 +3,7 @@
 #import "HooksManager.h"
 #import "MemoryUtils.h"
 #import <QuartzCore/QuartzCore.h>
+#import <AudioToolbox/AudioToolbox.h> // ← Для звуков
 
 // ============ ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ============
 BOOL g_espEnabled = NO;
@@ -13,6 +14,14 @@ BOOL g_unlimitedAmmo = NO;
 BOOL g_triggerbot = NO;
 NSInteger g_fpsLimit = 60;
 NSInteger g_language = 0;
+
+// ============ ЗВУКИ ============
+static void PlayToggleSound(BOOL isOn) {
+    // 1103 - короткий "щёлчок" (включение)
+    // 1104 - более низкий звук (выключение)
+    SystemSoundID soundID = isOn ? 1103 : 1104;
+    AudioServicesPlaySystemSound(soundID);
+}
 
 // ============ ЛОКАЛИЗАЦИЯ ============
 static NSDictionary *enStrings = nil;
@@ -123,6 +132,9 @@ static NSString* L(NSString *key) {
 - (void)tap {
     self.on = !self.on;
     
+    // ============ ЗВУК ПРИ ПЕРЕКЛЮЧЕНИИ ============
+    PlayToggleSound(self.on);
+    
     [UIView animateWithDuration:0.18 animations:^{
         self.box.backgroundColor = self.on ? Lucky77Theme.purple : UIColor.clearColor;
         self.box.layer.borderColor = (self.on ? Lucky77Theme.purpleGlow : Lucky77Theme.border).CGColor;
@@ -162,7 +174,7 @@ static NSString* L(NSString *key) {
 @property (nonatomic, strong) UIScrollView *sidebarScroll;
 @property (nonatomic, strong) UIStackView *navStack;
 @property (nonatomic, strong) NSArray *navButtons;
-@property (nonatomic, assign) BOOL firstOpen; // ← Флаг для контроля первого открытия
+@property (nonatomic, assign) BOOL firstOpen;
 @end
 
 @implementation L77MenuViewController
@@ -176,7 +188,7 @@ static NSString* L(NSString *key) {
     self.modalPresentationStyle = UIModalPresentationOverCurrentContext;
     self.modalTransitionStyle = UIModalTransitionStyleCrossDissolve;
     
-    self.firstOpen = YES; // ← При первом запуске показываем интро
+    self.firstOpen = YES;
     
     self.config = [NSMutableDictionary dictionary];
     [self loadConfig];
@@ -188,7 +200,7 @@ static NSString* L(NSString *key) {
     
     [self buildLauncherButton];
     [self buildMenu];
-    [self buildIntroView]; // Создаём интро, но не показываем
+    [self buildIntroView];
     [self startFPS];
 }
 
@@ -514,14 +526,14 @@ static NSString* L(NSString *key) {
     return container;
 }
 
-// ============ ИНТРО (ПОКАЗЫВАЕТСЯ ТОЛЬКО ПРИ ПЕРВОМ ОТКРЫТИИ) ============
+// ============ ИНТРО ============
 - (void)buildIntroView {
     self.introView = [UIView new];
     self.introView.translatesAutoresizingMaskIntoConstraints = NO;
     self.introView.backgroundColor = [Lucky77Theme.background colorWithAlphaComponent:0.95];
     self.introView.layer.cornerRadius = 20;
     self.introView.userInteractionEnabled = NO;
-    self.introView.hidden = YES; // Скрыто по умолчанию
+    self.introView.hidden = YES;
     [self.view addSubview:self.introView];
     
     [NSLayoutConstraint activateConstraints:@[
@@ -575,7 +587,6 @@ static NSString* L(NSString *key) {
 
 - (void)showIntroWithCompletion:(void (^)(void))completion {
     if (!self.firstOpen) {
-        // Если не первое открытие — сразу вызываем completion
         if (completion) completion();
         return;
     }
@@ -604,7 +615,6 @@ static NSString* L(NSString *key) {
 // ============ УПРАВЛЕНИЕ МЕНЮ ============
 - (void)toggleMenu {
     if (self.menuCard.hidden) {
-        // Показываем интро (только при первом открытии), затем меню
         [self showIntroWithCompletion:^{
             self.menuCard.hidden = NO;
             self.menuCard.alpha = 0;
@@ -751,14 +761,8 @@ void Lucky77PresentMenu(UIViewController *presenter) {
     [presenter presentViewController:Lucky77CreateMenuViewController() animated:NO completion:nil];
 }
 
-// ============ ТОЧКА ВХОДА С ОЖИДАНИЕМ LEGAL ЭКРАНА ============
-__attribute__((constructor)) void init() {
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 0.5 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-        [self performSelector:@selector(findGameWindow) withObject:nil afterDelay:0.3];
-    });
-}
-
-+ (void)findGameWindow {
+// ============ ПОИСК ОКНА ============
+static void findGameWindow(void) {
     UIWindow *window = nil;
     
     if (@available(iOS 13.0, *)) {
@@ -788,6 +792,15 @@ __attribute__((constructor)) void init() {
         NSLog(@"[Lucky77] ✅ Menu injected after Legal screen! Root: %@", className);
     } else {
         NSLog(@"[Lucky77] ⏳ Waiting for Legal screen to pass... Current: %@", className);
-        [self performSelector:@selector(findGameWindow) withObject:nil afterDelay:0.5];
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 0.5 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+            findGameWindow();
+        });
     }
+}
+
+// ============ ТОЧКА ВХОДА ============
+__attribute__((constructor)) void init() {
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 0.5 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+        findGameWindow();
+    });
 }
