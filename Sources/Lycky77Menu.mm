@@ -3,7 +3,7 @@
 #import "HooksManager.h"
 #import "MemoryUtils.h"
 #import <QuartzCore/QuartzCore.h>
-#import <AudioToolbox/AudioToolbox.h> // ← Для звуков
+#import <AudioToolbox/AudioToolbox.h>
 
 // ============ ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ============
 BOOL g_espEnabled = NO;
@@ -15,10 +15,7 @@ BOOL g_triggerbot = NO;
 NSInteger g_fpsLimit = 60;
 NSInteger g_language = 0;
 
-// ============ ЗВУКИ ============
 static void PlayToggleSound(BOOL isOn) {
-    // 1103 - короткий "щёлчок" (включение)
-    // 1104 - более низкий звук (выключение)
     SystemSoundID soundID = isOn ? 1103 : 1104;
     AudioServicesPlaySystemSound(soundID);
 }
@@ -131,8 +128,6 @@ static NSString* L(NSString *key) {
 
 - (void)tap {
     self.on = !self.on;
-    
-    // ============ ЗВУК ПРИ ПЕРЕКЛЮЧЕНИИ ============
     PlayToggleSound(self.on);
     
     [UIView animateWithDuration:0.18 animations:^{
@@ -158,9 +153,6 @@ static NSString* L(NSString *key) {
 // ============ ГЛАВНЫЙ КОНТРОЛЛЕР ============
 @interface L77MenuViewController : UIViewController
 @property (nonatomic, strong) UIView *menuCard;
-@property (nonatomic, strong) UIView *introView;
-@property (nonatomic, strong) UILabel *titleLabel;
-@property (nonatomic, strong) UILabel *versionLabel;
 @property (nonatomic, strong) UILabel *fpsLabel;
 @property (nonatomic, strong) CADisplayLink *displayLink;
 @property (nonatomic, assign) CFTimeInterval lastTimestamp;
@@ -174,7 +166,6 @@ static NSString* L(NSString *key) {
 @property (nonatomic, strong) UIScrollView *sidebarScroll;
 @property (nonatomic, strong) UIStackView *navStack;
 @property (nonatomic, strong) NSArray *navButtons;
-@property (nonatomic, assign) BOOL firstOpen;
 @end
 
 @implementation L77MenuViewController
@@ -182,13 +173,11 @@ static NSString* L(NSString *key) {
 - (void)viewDidLoad {
     [super viewDidLoad];
     
+    // Минимальные настройки — ничего лишнего
     self.view.backgroundColor = [UIColor clearColor];
     self.view.opaque = NO;
     self.view.userInteractionEnabled = NO;
     self.modalPresentationStyle = UIModalPresentationOverCurrentContext;
-    self.modalTransitionStyle = UIModalTransitionStyleCrossDissolve;
-    
-    self.firstOpen = YES;
     
     self.config = [NSMutableDictionary dictionary];
     [self loadConfig];
@@ -200,14 +189,7 @@ static NSString* L(NSString *key) {
     
     [self buildLauncherButton];
     [self buildMenu];
-    [self buildIntroView];
     [self startFPS];
-}
-
-- (void)viewWillAppear:(BOOL)animated {
-    [super viewWillAppear:animated];
-    self.view.backgroundColor = [UIColor clearColor];
-    self.view.userInteractionEnabled = NO;
 }
 
 - (void)dealloc {
@@ -526,104 +508,16 @@ static NSString* L(NSString *key) {
     return container;
 }
 
-// ============ ИНТРО ============
-- (void)buildIntroView {
-    self.introView = [UIView new];
-    self.introView.translatesAutoresizingMaskIntoConstraints = NO;
-    self.introView.backgroundColor = [Lucky77Theme.background colorWithAlphaComponent:0.95];
-    self.introView.layer.cornerRadius = 20;
-    self.introView.userInteractionEnabled = NO;
-    self.introView.hidden = YES;
-    [self.view addSubview:self.introView];
-    
-    [NSLayoutConstraint activateConstraints:@[
-        [self.introView.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
-        [self.introView.centerYAnchor constraintEqualToAnchor:self.view.centerYAnchor],
-        [self.introView.widthAnchor constraintEqualToConstant:280],
-        [self.introView.heightAnchor constraintEqualToConstant:260],
-    ]];
-    
-    UILabel *bigLogo = [UILabel new];
-    bigLogo.translatesAutoresizingMaskIntoConstraints = NO;
-    bigLogo.text = @"⚡";
-    bigLogo.font = [UIFont systemFontOfSize:80 weight:UIFontWeightBold];
-    bigLogo.textColor = Lucky77Theme.purpleGlow;
-    bigLogo.textAlignment = NSTextAlignmentCenter;
-    bigLogo.layer.shadowColor = Lucky77Theme.purpleGlow.CGColor;
-    bigLogo.layer.shadowOpacity = 0.9;
-    bigLogo.layer.shadowRadius = 30;
-    [self.introView addSubview:bigLogo];
-    
-    self.titleLabel = [UILabel new];
-    self.titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    self.titleLabel.text = @"Lucky77";
-    self.titleLabel.font = [UIFont systemFontOfSize:36 weight:UIFontWeightBold];
-    self.titleLabel.textColor = Lucky77Theme.purpleGlow;
-    self.titleLabel.textAlignment = NSTextAlignmentCenter;
-    self.titleLabel.layer.shadowColor = Lucky77Theme.purpleGlow.CGColor;
-    self.titleLabel.layer.shadowOpacity = 0.8;
-    self.titleLabel.layer.shadowRadius = 20;
-    [self.introView addSubview:self.titleLabel];
-    
-    self.versionLabel = [UILabel new];
-    self.versionLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    self.versionLabel.text = @"v0.1";
-    self.versionLabel.font = [Lucky77Theme bodyFont:16];
-    self.versionLabel.textColor = Lucky77Theme.textSecondary;
-    self.versionLabel.textAlignment = NSTextAlignmentCenter;
-    [self.introView addSubview:self.versionLabel];
-    
-    [NSLayoutConstraint activateConstraints:@[
-        [bigLogo.centerXAnchor constraintEqualToAnchor:self.introView.centerXAnchor],
-        [bigLogo.topAnchor constraintEqualToAnchor:self.introView.topAnchor constant:20],
-        [bigLogo.widthAnchor constraintEqualToConstant:100],
-        [bigLogo.heightAnchor constraintEqualToConstant:100],
-        [self.titleLabel.centerXAnchor constraintEqualToAnchor:self.introView.centerXAnchor],
-        [self.titleLabel.topAnchor constraintEqualToAnchor:bigLogo.bottomAnchor constant:8],
-        [self.versionLabel.centerXAnchor constraintEqualToAnchor:self.introView.centerXAnchor],
-        [self.versionLabel.topAnchor constraintEqualToAnchor:self.titleLabel.bottomAnchor constant:4],
-    ]];
-}
-
-- (void)showIntroWithCompletion:(void (^)(void))completion {
-    if (!self.firstOpen) {
-        if (completion) completion();
-        return;
-    }
-    
-    self.firstOpen = NO;
-    self.introView.hidden = NO;
-    self.introView.transform = CGAffineTransformMakeScale(0.5, 0.5);
-    self.introView.alpha = 0;
-    
-    [UIView animateWithDuration:0.8 delay:0.2 usingSpringWithDamping:0.7 initialSpringVelocity:0.5 options:0 animations:^{
-        self.introView.transform = CGAffineTransformIdentity;
-        self.introView.alpha = 1;
-    } completion:^(BOOL finished) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.5 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-            [UIView animateWithDuration:0.6 animations:^{
-                self.introView.alpha = 0;
-                self.introView.transform = CGAffineTransformMakeScale(1.2, 1.2);
-            } completion:^(BOOL finished2) {
-                self.introView.hidden = YES;
-                if (completion) completion();
-            }];
-        });
-    }];
-}
-
-// ============ УПРАВЛЕНИЕ МЕНЮ ============
+// ============ УПРАВЛЕНИЕ ============
 - (void)toggleMenu {
     if (self.menuCard.hidden) {
-        [self showIntroWithCompletion:^{
-            self.menuCard.hidden = NO;
-            self.menuCard.alpha = 0;
-            self.launcherButton.hidden = YES;
-            self.view.userInteractionEnabled = YES;
-            
-            [UIView animateWithDuration:0.2 animations:^{
-                self.menuCard.alpha = 1;
-            }];
+        self.menuCard.hidden = NO;
+        self.menuCard.alpha = 0;
+        self.launcherButton.hidden = YES;
+        self.view.userInteractionEnabled = YES;
+        
+        [UIView animateWithDuration:0.2 animations:^{
+            self.menuCard.alpha = 1;
         }];
     } else {
         [UIView animateWithDuration:0.15 animations:^{
@@ -761,46 +655,17 @@ void Lucky77PresentMenu(UIViewController *presenter) {
     [presenter presentViewController:Lucky77CreateMenuViewController() animated:NO completion:nil];
 }
 
-// ============ ПОИСК ОКНА ============
-static void findGameWindow(void) {
-    UIWindow *window = nil;
-    
-    if (@available(iOS 13.0, *)) {
-        for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
-            if ([scene isKindOfClass:[UIWindowScene class]] && scene.activationState == UISceneActivationStateForegroundActive) {
-                for (UIWindow *w in scene.windows) {
-                    NSString *className = NSStringFromClass([w.rootViewController class]);
-                    if (![className containsString:@"WebView"] && ![className containsString:@"WKWeb"]) {
-                        window = w;
-                        break;
-                    }
-                }
-                if (window) break;
-            }
-        }
-    }
-    
-    if (!window) {
-        window = [UIApplication sharedApplication].windows.firstObject;
-    }
-    
-    UIViewController *root = window.rootViewController;
-    NSString *className = NSStringFromClass([root class]);
-    
-    if (root && ![className containsString:@"WebView"] && ![className containsString:@"WKWeb"]) {
-        Lucky77PresentMenu(root);
-        NSLog(@"[Lucky77] ✅ Menu injected after Legal screen! Root: %@", className);
-    } else {
-        NSLog(@"[Lucky77] ⏳ Waiting for Legal screen to pass... Current: %@", className);
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 0.5 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-            findGameWindow();
-        });
-    }
-}
-
-// ============ ТОЧКА ВХОДА ============
+// ============ ТОЧКА ВХОДА (МИНИМАЛЬНАЯ) ============
 __attribute__((constructor)) void init() {
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 0.5 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-        findGameWindow();
+    // Просто ждём 2 секунды и пробуем показать меню
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+        UIWindow *window = [UIApplication sharedApplication].windows.firstObject;
+        UIViewController *root = window.rootViewController;
+        if (root) {
+            Lucky77PresentMenu(root);
+            NSLog(@"[Lucky77] ✅ Menu injected!");
+        } else {
+            NSLog(@"[Lucky77] ❌ No root view controller");
+        }
     });
 }
