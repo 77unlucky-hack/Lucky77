@@ -32,6 +32,7 @@ SOURCES=$(find Sources -name "*.m" -o -name "*.mm" | tr '\n' ' ')
   -framework QuartzCore \
   -framework Foundation \
   -framework CoreGraphics \
+  -framework AudioToolbox \
   -lc++ \
   -ldl \
   $SOURCES \
