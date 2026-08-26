@@ -1,8 +1,5 @@
-#import "Lucky77Menu.h"
-#import "Lucky77Theme.h"
-#import "HooksManager.h"
-#import "MemoryUtils.h"
-#import <QuartzCore/QuartzCore.h>
+#import <UIKit/UIKit.h>
+#import <AudioToolbox/AudioToolbox.h>
 
 // ============ ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ============
 BOOL g_espEnabled = NO;
@@ -13,6 +10,14 @@ BOOL g_unlimitedAmmo = NO;
 BOOL g_triggerbot = NO;
 NSInteger g_fpsLimit = 60;
 NSInteger g_language = 0;
+
+// ============ ЗВУКИ ============
+static void PlayToggleSound(BOOL isOn) {
+    @try {
+        SystemSoundID soundID = isOn ? 1103 : 1104;
+        AudioServicesPlaySystemSound(soundID);
+    } @catch (NSException *exception) {}
+}
 
 // ============ ЛОКАЛИЗАЦИЯ ============
 static NSDictionary *enStrings = nil;
@@ -91,14 +96,14 @@ static NSString* L(NSString *key) {
         self.box = [UIView new];
         self.box.layer.cornerRadius = 4;
         self.box.layer.borderWidth = 1.5;
-        self.box.layer.borderColor = Lucky77Theme.border.CGColor;
+        self.box.layer.borderColor = [UIColor colorWithWhite:0.38 alpha:0.35].CGColor;
         self.box.backgroundColor = UIColor.clearColor;
         self.box.translatesAutoresizingMaskIntoConstraints = NO;
         
         self.label = [UILabel new];
         self.label.text = title;
-        self.label.font = [Lucky77Theme bodyFont:12];
-        self.label.textColor = Lucky77Theme.textPrimary;
+        self.label.font = [UIFont systemFontOfSize:12 weight:UIFontWeightMedium];
+        self.label.textColor = [UIColor colorWithWhite:0.97 alpha:1.0];
         self.label.translatesAutoresizingMaskIntoConstraints = NO;
         
         [self addSubview:self.box];
@@ -122,10 +127,11 @@ static NSString* L(NSString *key) {
 
 - (void)tap {
     self.on = !self.on;
+    PlayToggleSound(self.on);
     
     [UIView animateWithDuration:0.18 animations:^{
-        self.box.backgroundColor = self.on ? Lucky77Theme.purple : UIColor.clearColor;
-        self.box.layer.borderColor = (self.on ? Lucky77Theme.purpleGlow : Lucky77Theme.border).CGColor;
+        self.box.backgroundColor = self.on ? [UIColor colorWithRed:0.62 green:0.20 blue:1.0 alpha:1.0] : UIColor.clearColor;
+        self.box.layer.borderColor = (self.on ? [UIColor colorWithRed:0.73 green:0.36 blue:1.0 alpha:1.0] : [UIColor colorWithWhite:0.38 alpha:0.35]).CGColor;
         self.box.transform = CGAffineTransformMakeScale(0.92, 0.92);
     } completion:^(BOOL finished) {
         [UIView animateWithDuration:0.12 animations:^{
@@ -146,6 +152,16 @@ static NSString* L(NSString *key) {
 // ============ ГЛАВНЫЙ КОНТРОЛЛЕР ============
 @interface L77MenuViewController : UIViewController
 @property (nonatomic, strong) UIView *menuCard;
+@property (nonatomic, strong) UIView *introView;
+@property (nonatomic, strong) UIImageView *logoView;
+@property (nonatomic, strong) UILabel *bigLogo;
+@property (nonatomic, strong) UILabel *titleLabel;
+@property (nonatomic, strong) UILabel *versionLabel;
+@property (nonatomic, strong) UILabel *fpsLabel;
+@property (nonatomic, strong) CADisplayLink *displayLink;
+@property (nonatomic, assign) CFTimeInterval lastTimestamp;
+@property (nonatomic, assign) NSInteger frameCount;
+@property (nonatomic, strong) UIStackView *contentStack;
 @property (nonatomic, strong) UIButton *launcherButton;
 @property (nonatomic, assign) BOOL isDragging;
 @property (nonatomic, assign) CGPoint dragOffset;
@@ -154,9 +170,11 @@ static NSString* L(NSString *key) {
 @property (nonatomic, strong) UIScrollView *sidebarScroll;
 @property (nonatomic, strong) UIStackView *navStack;
 @property (nonatomic, strong) NSArray *navButtons;
-@property (nonatomic, strong) UIStackView *contentStack;
+@property (nonatomic, assign) BOOL firstOpen;
+@property (nonatomic, assign) BOOL logoLoaded;
 @end
 
+// ============ ВСЯ ЛОГИКА МЕНЮ ============
 @implementation L77MenuViewController
 
 - (void)viewDidLoad {
@@ -165,28 +183,58 @@ static NSString* L(NSString *key) {
     self.view.backgroundColor = [UIColor clearColor];
     self.view.opaque = NO;
     self.modalPresentationStyle = UIModalPresentationOverFullScreen;
+    self.firstOpen = YES;
+    self.logoLoaded = NO;
     
     self.config = [NSMutableDictionary dictionary];
     [self loadConfig];
     
     [self buildLauncherButton];
     [self buildMenu];
+    [self buildIntroView];
+    [self startFPS];
 }
 
 - (void)dealloc {
-    // Ничего не делаем
+    if (self.displayLink) {
+        [self.displayLink invalidate];
+        self.displayLink = nil;
+    }
+}
+
+// ============ FPS ============
+- (void)startFPS {
+    self.displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(tick:)];
+    self.displayLink.preferredFramesPerSecond = g_fpsLimit;
+    [self.displayLink addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
+}
+
+- (void)tick:(CADisplayLink *)link {
+    if (!self.fpsLabel) return;
+    
+    if (self.lastTimestamp == 0) {
+        self.lastTimestamp = link.timestamp;
+    }
+    self.frameCount += 1;
+    CFTimeInterval elapsed = link.timestamp - self.lastTimestamp;
+    if (elapsed >= 0.5) {
+        double fps = self.frameCount / elapsed;
+        self.fpsLabel.text = [NSString stringWithFormat:@"%.0f %@", fps, L(@"fps")];
+        self.frameCount = 0;
+        self.lastTimestamp = link.timestamp;
+    }
 }
 
 // ============ КНОПКА-ЛАУНЧЕР ============
 - (void)buildLauncherButton {
     self.launcherButton = [UIButton buttonWithType:UIButtonTypeSystem];
     self.launcherButton.translatesAutoresizingMaskIntoConstraints = NO;
-    self.launcherButton.backgroundColor = [Lucky77Theme.panel colorWithAlphaComponent:0.85];
+    self.launcherButton.backgroundColor = [[UIColor colorWithRed:0.045 green:0.045 blue:0.075 alpha:1.0] colorWithAlphaComponent:0.85];
     self.launcherButton.layer.cornerRadius = 14;
     self.launcherButton.layer.borderWidth = 1;
-    self.launcherButton.layer.borderColor = Lucky77Theme.purple.CGColor;
+    self.launcherButton.layer.borderColor = [UIColor colorWithRed:0.62 green:0.20 blue:1.0 alpha:1.0].CGColor;
     [self.launcherButton setTitle:@"⚡" forState:UIControlStateNormal];
-    [self.launcherButton setTitleColor:Lucky77Theme.purpleGlow forState:UIControlStateNormal];
+    [self.launcherButton setTitleColor:[UIColor colorWithRed:0.73 green:0.36 blue:1.0 alpha:1.0] forState:UIControlStateNormal];
     self.launcherButton.titleLabel.font = [UIFont systemFontOfSize:24 weight:UIFontWeightBold];
     self.launcherButton.userInteractionEnabled = YES;
     [self.launcherButton addTarget:self action:@selector(toggleMenu) forControlEvents:UIControlEventTouchUpInside];
@@ -222,10 +270,10 @@ static NSString* L(NSString *key) {
 - (void)buildMenu {
     self.menuCard = [UIView new];
     self.menuCard.translatesAutoresizingMaskIntoConstraints = NO;
-    self.menuCard.backgroundColor = [Lucky77Theme.panel colorWithAlphaComponent:0.9];
+    self.menuCard.backgroundColor = [[UIColor colorWithRed:0.045 green:0.045 blue:0.075 alpha:1.0] colorWithAlphaComponent:0.9];
     self.menuCard.layer.cornerRadius = 16;
     self.menuCard.layer.borderWidth = 1;
-    self.menuCard.layer.borderColor = Lucky77Theme.border.CGColor;
+    self.menuCard.layer.borderColor = [UIColor colorWithWhite:0.38 alpha:0.35].CGColor;
     self.menuCard.hidden = YES;
     self.menuCard.userInteractionEnabled = YES;
     [self.view addSubview:self.menuCard];
@@ -234,27 +282,33 @@ static NSString* L(NSString *key) {
         [self.menuCard.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
         [self.menuCard.centerYAnchor constraintEqualToAnchor:self.view.centerYAnchor],
         [self.menuCard.widthAnchor constraintEqualToConstant:280],
-        [self.menuCard.heightAnchor constraintEqualToConstant:320],
+        [self.menuCard.heightAnchor constraintEqualToConstant:350],
     ]];
     
-    // HEADER
     UIView *header = [UIView new];
     header.translatesAutoresizingMaskIntoConstraints = NO;
     [self.menuCard addSubview:header];
+    
+    self.fpsLabel = [UILabel new];
+    self.fpsLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    self.fpsLabel.text = @"-- FPS";
+    self.fpsLabel.font = [UIFont systemFontOfSize:11 weight:UIFontWeightMedium];
+    self.fpsLabel.textColor = [UIColor colorWithRed:0.73 green:0.36 blue:1.0 alpha:1.0];
     
     UILabel *logo = [UILabel new];
     logo.translatesAutoresizingMaskIntoConstraints = NO;
     logo.text = @"⚡";
     logo.font = [UIFont systemFontOfSize:18 weight:UIFontWeightBold];
-    logo.textColor = Lucky77Theme.purpleGlow;
+    logo.textColor = [UIColor colorWithRed:0.73 green:0.36 blue:1.0 alpha:1.0];
     
     UIButton *close = [UIButton buttonWithType:UIButtonTypeSystem];
     close.translatesAutoresizingMaskIntoConstraints = NO;
     [close setTitle:@"✕" forState:UIControlStateNormal];
-    [close setTitleColor:Lucky77Theme.purpleGlow forState:UIControlStateNormal];
-    close.titleLabel.font = [Lucky77Theme titleFont:16];
+    [close setTitleColor:[UIColor colorWithRed:0.73 green:0.36 blue:1.0 alpha:1.0] forState:UIControlStateNormal];
+    close.titleLabel.font = [UIFont systemFontOfSize:16 weight:UIFontWeightSemibold];
     [close addTarget:self action:@selector(toggleMenu) forControlEvents:UIControlEventTouchUpInside];
     
+    [header addSubview:self.fpsLabel];
     [header addSubview:logo];
     [header addSubview:close];
     
@@ -263,6 +317,8 @@ static NSString* L(NSString *key) {
         [header.trailingAnchor constraintEqualToAnchor:self.menuCard.trailingAnchor],
         [header.topAnchor constraintEqualToAnchor:self.menuCard.topAnchor],
         [header.heightAnchor constraintEqualToConstant:36],
+        [self.fpsLabel.leadingAnchor constraintEqualToAnchor:header.leadingAnchor constant:12],
+        [self.fpsLabel.centerYAnchor constraintEqualToAnchor:header.centerYAnchor],
         [logo.centerXAnchor constraintEqualToAnchor:header.centerXAnchor],
         [logo.centerYAnchor constraintEqualToAnchor:header.centerYAnchor],
         [close.trailingAnchor constraintEqualToAnchor:header.trailingAnchor constant:-10],
@@ -273,13 +329,12 @@ static NSString* L(NSString *key) {
     
     UIView *divider = [UIView new];
     divider.translatesAutoresizingMaskIntoConstraints = NO;
-    divider.backgroundColor = Lucky77Theme.border;
+    divider.backgroundColor = [UIColor colorWithWhite:0.38 alpha:0.35];
     [self.menuCard addSubview:divider];
     
-    // SIDEBAR
     self.sidebarScroll = [UIScrollView new];
     self.sidebarScroll.translatesAutoresizingMaskIntoConstraints = NO;
-    self.sidebarScroll.backgroundColor = [Lucky77Theme.background colorWithAlphaComponent:0.5];
+    self.sidebarScroll.backgroundColor = [[UIColor colorWithRed:0.025 green:0.025 blue:0.045 alpha:1.0] colorWithAlphaComponent:0.5];
     self.sidebarScroll.layer.cornerRadius = 10;
     self.sidebarScroll.showsVerticalScrollIndicator = NO;
     [self.menuCard addSubview:self.sidebarScroll];
@@ -299,10 +354,10 @@ static NSString* L(NSString *key) {
         UIButton *b = [UIButton buttonWithType:UIButtonTypeSystem];
         b.contentHorizontalAlignment = UIControlContentHorizontalAlignmentCenter;
         [b setTitle:sections[i] forState:UIControlStateNormal];
-        [b setTitleColor:Lucky77Theme.textPrimary forState:UIControlStateNormal];
-        b.titleLabel.font = [Lucky77Theme bodyFont:12];
+        [b setTitleColor:[UIColor colorWithWhite:0.97 alpha:1.0] forState:UIControlStateNormal];
+        b.titleLabel.font = [UIFont systemFontOfSize:12 weight:UIFontWeightMedium];
         b.layer.cornerRadius = 6;
-        b.backgroundColor = (i == 0) ? [Lucky77Theme.purpleDark colorWithAlphaComponent:0.8] : UIColor.clearColor;
+        b.backgroundColor = (i == 0) ? [[UIColor colorWithRed:0.20 green:0.03 blue:0.34 alpha:1.0] colorWithAlphaComponent:0.8] : UIColor.clearColor;
         b.tag = i;
         [b addTarget:self action:@selector(navTapped:) forControlEvents:UIControlEventTouchUpInside];
         [self.navStack addArrangedSubview:b];
@@ -310,7 +365,6 @@ static NSString* L(NSString *key) {
     }
     self.navButtons = buttons;
     
-    // CONTENT
     UIScrollView *scroll = [UIScrollView new];
     scroll.translatesAutoresizingMaskIntoConstraints = NO;
     scroll.showsVerticalScrollIndicator = NO;
@@ -368,10 +422,10 @@ static NSString* L(NSString *key) {
 
 - (UIView *)makeColumn:(NSArray *)items keys:(NSArray *)keys {
     UIView *container = [UIView new];
-    container.backgroundColor = [Lucky77Theme.panelAlt colorWithAlphaComponent:0.5];
+    container.backgroundColor = [[UIColor colorWithRed:0.065 green:0.055 blue:0.10 alpha:1.0] colorWithAlphaComponent:0.5];
     container.layer.cornerRadius = 8;
     container.layer.borderWidth = 1;
-    container.layer.borderColor = Lucky77Theme.border.CGColor;
+    container.layer.borderColor = [UIColor colorWithWhite:0.38 alpha:0.35].CGColor;
     
     UIStackView *stack = [UIStackView new];
     stack.translatesAutoresizingMaskIntoConstraints = NO;
@@ -397,10 +451,10 @@ static NSString* L(NSString *key) {
 
 - (UIView *)makeSettingsContent {
     UIView *container = [UIView new];
-    container.backgroundColor = [Lucky77Theme.panelAlt colorWithAlphaComponent:0.5];
+    container.backgroundColor = [[UIColor colorWithRed:0.065 green:0.055 blue:0.10 alpha:1.0] colorWithAlphaComponent:0.5];
     container.layer.cornerRadius = 8;
     container.layer.borderWidth = 1;
-    container.layer.borderColor = Lucky77Theme.border.CGColor;
+    container.layer.borderColor = [UIColor colorWithWhite:0.38 alpha:0.35].CGColor;
     
     UIStackView *stack = [UIStackView new];
     stack.translatesAutoresizingMaskIntoConstraints = NO;
@@ -410,15 +464,32 @@ static NSString* L(NSString *key) {
     
     UILabel *langLabel = [UILabel new];
     langLabel.text = L(@"language");
-    langLabel.font = [Lucky77Theme bodyFont:11];
-    langLabel.textColor = Lucky77Theme.textSecondary;
+    langLabel.font = [UIFont systemFontOfSize:11 weight:UIFontWeightMedium];
+    langLabel.textColor = [UIColor colorWithWhite:0.72 alpha:1.0];
     [stack addArrangedSubview:langLabel];
     
     UISegmentedControl *langSeg = [[UISegmentedControl alloc] initWithItems:@[@"EN", @"RU"]];
     langSeg.selectedSegmentIndex = g_language;
-    langSeg.tintColor = Lucky77Theme.purple;
+    langSeg.tintColor = [UIColor colorWithRed:0.62 green:0.20 blue:1.0 alpha:1.0];
     [langSeg addTarget:self action:@selector(languageChanged:) forControlEvents:UIControlEventValueChanged];
     [stack addArrangedSubview:langSeg];
+    
+    UILabel *fpsLabel = [UILabel new];
+    fpsLabel.text = L(@"fps_limit");
+    fpsLabel.font = [UIFont systemFontOfSize:11 weight:UIFontWeightMedium];
+    fpsLabel.textColor = [UIColor colorWithWhite:0.72 alpha:1.0];
+    [stack addArrangedSubview:fpsLabel];
+    
+    UISegmentedControl *fpsSeg = [[UISegmentedControl alloc] initWithItems:@[@"30", @"60", @"90", @"120"]];
+    NSInteger index = 0;
+    if (g_fpsLimit == 30) index = 0;
+    else if (g_fpsLimit == 60) index = 1;
+    else if (g_fpsLimit == 90) index = 2;
+    else if (g_fpsLimit == 120) index = 3;
+    fpsSeg.selectedSegmentIndex = index;
+    fpsSeg.tintColor = [UIColor colorWithRed:0.62 green:0.20 blue:1.0 alpha:1.0];
+    [fpsSeg addTarget:self action:@selector(fpsLimitChanged:) forControlEvents:UIControlEventValueChanged];
+    [stack addArrangedSubview:fpsSeg];
     
     UIStackView *configButtons = [UIStackView new];
     configButtons.axis = UILayoutConstraintAxisHorizontal;
@@ -427,19 +498,19 @@ static NSString* L(NSString *key) {
     
     UIButton *saveBtn = [UIButton buttonWithType:UIButtonTypeSystem];
     [saveBtn setTitle:L(@"save_config") forState:UIControlStateNormal];
-    saveBtn.backgroundColor = Lucky77Theme.purple;
+    saveBtn.backgroundColor = [UIColor colorWithRed:0.62 green:0.20 blue:1.0 alpha:1.0];
     saveBtn.layer.cornerRadius = 4;
     [saveBtn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-    saveBtn.titleLabel.font = [Lucky77Theme bodyFont:10];
+    saveBtn.titleLabel.font = [UIFont systemFontOfSize:10 weight:UIFontWeightMedium];
     [saveBtn addTarget:self action:@selector(saveConfig) forControlEvents:UIControlEventTouchUpInside];
     [configButtons addArrangedSubview:saveBtn];
     
     UIButton *loadBtn = [UIButton buttonWithType:UIButtonTypeSystem];
     [loadBtn setTitle:L(@"load_config") forState:UIControlStateNormal];
-    loadBtn.backgroundColor = Lucky77Theme.purpleDark;
+    loadBtn.backgroundColor = [UIColor colorWithRed:0.20 green:0.03 blue:0.34 alpha:1.0];
     loadBtn.layer.cornerRadius = 4;
     [loadBtn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-    loadBtn.titleLabel.font = [Lucky77Theme bodyFont:10];
+    loadBtn.titleLabel.font = [UIFont systemFontOfSize:10 weight:UIFontWeightMedium];
     [loadBtn addTarget:self action:@selector(loadConfig) forControlEvents:UIControlEventTouchUpInside];
     [configButtons addArrangedSubview:loadBtn];
     
@@ -447,8 +518,8 @@ static NSString* L(NSString *key) {
     
     UIButton *devBtn = [UIButton buttonWithType:UIButtonTypeSystem];
     [devBtn setTitle:@"👨‍💻 @hack77ios" forState:UIControlStateNormal];
-    [devBtn setTitleColor:Lucky77Theme.purpleGlow forState:UIControlStateNormal];
-    devBtn.titleLabel.font = [Lucky77Theme bodyFont:10];
+    [devBtn setTitleColor:[UIColor colorWithRed:0.73 green:0.36 blue:1.0 alpha:1.0] forState:UIControlStateNormal];
+    devBtn.titleLabel.font = [UIFont systemFontOfSize:10 weight:UIFontWeightMedium];
     [devBtn addTarget:self action:@selector(openTelegram) forControlEvents:UIControlEventTouchUpInside];
     [stack addArrangedSubview:devBtn];
     
@@ -463,15 +534,164 @@ static NSString* L(NSString *key) {
     return container;
 }
 
+// ============ ИНТРО ============
+- (void)buildIntroView {
+    self.introView = [UIView new];
+    self.introView.translatesAutoresizingMaskIntoConstraints = NO;
+    self.introView.backgroundColor = [[UIColor colorWithRed:0.025 green:0.025 blue:0.045 alpha:1.0] colorWithAlphaComponent:0.95];
+    self.introView.layer.cornerRadius = 20;
+    self.introView.userInteractionEnabled = NO;
+    self.introView.hidden = YES;
+    [self.view addSubview:self.introView];
+    
+    [NSLayoutConstraint activateConstraints:@[
+        [self.introView.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
+        [self.introView.centerYAnchor constraintEqualToAnchor:self.view.centerYAnchor],
+        [self.introView.widthAnchor constraintEqualToConstant:280],
+        [self.introView.heightAnchor constraintEqualToConstant:260],
+    ]];
+    
+    self.logoView = [UIImageView new];
+    self.logoView.translatesAutoresizingMaskIntoConstraints = NO;
+    self.logoView.contentMode = UIViewContentModeScaleAspectFit;
+    self.logoView.layer.cornerRadius = 20;
+    self.logoView.clipsToBounds = YES;
+    self.logoView.backgroundColor = [UIColor clearColor];
+    [self.introView addSubview:self.logoView];
+    
+    [self loadLogo];
+    
+    self.bigLogo = [UILabel new];
+    self.bigLogo.translatesAutoresizingMaskIntoConstraints = NO;
+    self.bigLogo.text = @"⚡";
+    self.bigLogo.font = [UIFont systemFontOfSize:80 weight:UIFontWeightBold];
+    self.bigLogo.textColor = [UIColor colorWithRed:0.73 green:0.36 blue:1.0 alpha:1.0];
+    self.bigLogo.textAlignment = NSTextAlignmentCenter;
+    self.bigLogo.layer.shadowColor = [UIColor colorWithRed:0.73 green:0.36 blue:1.0 alpha:1.0].CGColor;
+    self.bigLogo.layer.shadowOpacity = 0.9;
+    self.bigLogo.layer.shadowRadius = 30;
+    self.bigLogo.hidden = YES;
+    [self.introView addSubview:self.bigLogo];
+    
+    self.titleLabel = [UILabel new];
+    self.titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    self.titleLabel.text = @"Lucky77";
+    self.titleLabel.font = [UIFont systemFontOfSize:36 weight:UIFontWeightBold];
+    self.titleLabel.textColor = [UIColor colorWithRed:0.73 green:0.36 blue:1.0 alpha:1.0];
+    self.titleLabel.textAlignment = NSTextAlignmentCenter;
+    self.titleLabel.layer.shadowColor = [UIColor colorWithRed:0.73 green:0.36 blue:1.0 alpha:1.0].CGColor;
+    self.titleLabel.layer.shadowOpacity = 0.8;
+    self.titleLabel.layer.shadowRadius = 20;
+    [self.introView addSubview:self.titleLabel];
+    
+    self.versionLabel = [UILabel new];
+    self.versionLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    self.versionLabel.text = @"v0.1";
+    self.versionLabel.font = [UIFont systemFontOfSize:16 weight:UIFontWeightMedium];
+    self.versionLabel.textColor = [UIColor colorWithWhite:0.72 alpha:1.0];
+    self.versionLabel.textAlignment = NSTextAlignmentCenter;
+    [self.introView addSubview:self.versionLabel];
+    
+    [NSLayoutConstraint activateConstraints:@[
+        [self.logoView.centerXAnchor constraintEqualToAnchor:self.introView.centerXAnchor],
+        [self.logoView.topAnchor constraintEqualToAnchor:self.introView.topAnchor constant:20],
+        [self.logoView.widthAnchor constraintEqualToConstant:120],
+        [self.logoView.heightAnchor constraintEqualToConstant:120],
+        [self.bigLogo.centerXAnchor constraintEqualToAnchor:self.introView.centerXAnchor],
+        [self.bigLogo.topAnchor constraintEqualToAnchor:self.introView.topAnchor constant:20],
+        [self.bigLogo.widthAnchor constraintEqualToConstant:120],
+        [self.bigLogo.heightAnchor constraintEqualToConstant:120],
+        [self.titleLabel.centerXAnchor constraintEqualToAnchor:self.introView.centerXAnchor],
+        [self.titleLabel.topAnchor constraintEqualToAnchor:self.logoView.bottomAnchor constant:16],
+        [self.versionLabel.centerXAnchor constraintEqualToAnchor:self.introView.centerXAnchor],
+        [self.versionLabel.topAnchor constraintEqualToAnchor:self.titleLabel.bottomAnchor constant:4],
+    ]];
+}
+
+// ============ ЗАГРУЗКА ЛОГОТИПА ============
+- (void)loadLogo {
+    NSString *logoURL = @"https://raw.githubusercontent.com/77unlucky-hack/Stadnoff2IosHack77/main/logo.png";
+    NSURL *url = [NSURL URLWithString:logoURL];
+    NSLog(@"[Lucky77] Loading logo from: %@", logoURL);
+    
+    NSURLSessionConfiguration *config = [NSURLSessionConfiguration defaultSessionConfiguration];
+    config.timeoutIntervalForRequest = 10.0;
+    config.timeoutIntervalForResource = 15.0;
+    NSURLSession *session = [NSURLSession sessionWithConfiguration:config];
+    
+    NSURLSessionDataTask *task = [session dataTaskWithURL:url completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+        if (error) {
+            NSLog(@"[Lucky77] Logo download error: %@", error.localizedDescription);
+            [self showFallbackLogo];
+            return;
+        }
+        
+        if (data && data.length > 0) {
+            UIImage *image = [UIImage imageWithData:data];
+            if (image) {
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    self.logoView.image = image;
+                    self.logoView.backgroundColor = [UIColor clearColor];
+                    self.logoLoaded = YES;
+                    self.bigLogo.hidden = YES;
+                    NSLog(@"[Lucky77] Logo loaded successfully!");
+                });
+            } else {
+                [self showFallbackLogo];
+            }
+        } else {
+            [self showFallbackLogo];
+        }
+    }];
+    [task resume];
+}
+
+- (void)showFallbackLogo {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        self.logoView.hidden = YES;
+        self.bigLogo.hidden = NO;
+    });
+}
+
+// ============ ПОКАЗ ИНТРО ============
+- (void)showIntroWithCompletion:(void (^)(void))completion {
+    if (!self.firstOpen) {
+        if (completion) completion();
+        return;
+    }
+    
+    self.firstOpen = NO;
+    self.introView.hidden = NO;
+    self.introView.transform = CGAffineTransformMakeScale(0.5, 0.5);
+    self.introView.alpha = 0;
+    
+    [UIView animateWithDuration:0.8 delay:0.2 usingSpringWithDamping:0.7 initialSpringVelocity:0.5 options:0 animations:^{
+        self.introView.transform = CGAffineTransformIdentity;
+        self.introView.alpha = 1;
+    } completion:^(BOOL finished) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.5 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+            [UIView animateWithDuration:0.6 animations:^{
+                self.introView.alpha = 0;
+                self.introView.transform = CGAffineTransformMakeScale(1.2, 1.2);
+            } completion:^(BOOL finished2) {
+                self.introView.hidden = YES;
+                if (completion) completion();
+            }];
+        });
+    }];
+}
+
 // ============ УПРАВЛЕНИЕ ============
 - (void)toggleMenu {
     if (self.menuCard.hidden) {
-        self.menuCard.hidden = NO;
-        self.menuCard.alpha = 0;
-        self.launcherButton.hidden = YES;
-        
-        [UIView animateWithDuration:0.2 animations:^{
-            self.menuCard.alpha = 1;
+        [self showIntroWithCompletion:^{
+            self.menuCard.hidden = NO;
+            self.menuCard.alpha = 0;
+            self.launcherButton.hidden = YES;
+            
+            [UIView animateWithDuration:0.2 animations:^{
+                self.menuCard.alpha = 1;
+            }];
         }];
     } else {
         [UIView animateWithDuration:0.15 animations:^{
@@ -491,7 +711,7 @@ static NSString* L(NSString *key) {
             b.backgroundColor = UIColor.clearColor;
         }
     }
-    sender.backgroundColor = [Lucky77Theme.purpleDark colorWithAlphaComponent:0.8];
+    sender.backgroundColor = [[UIColor colorWithRed:0.20 green:0.03 blue:0.34 alpha:1.0] colorWithAlphaComponent:0.8];
     [self switchToTab:sender.tag];
 }
 
@@ -508,6 +728,12 @@ static NSString* L(NSString *key) {
 - (void)languageChanged:(UISegmentedControl *)sender {
     g_language = sender.selectedSegmentIndex;
     [self refreshSettingsTab];
+}
+
+- (void)fpsLimitChanged:(UISegmentedControl *)sender {
+    NSArray *values = @[@30, @60, @90, @120];
+    g_fpsLimit = [values[sender.selectedSegmentIndex] integerValue];
+    self.displayLink.preferredFramesPerSecond = g_fpsLimit;
 }
 
 - (void)refreshSettingsTab {
@@ -533,6 +759,7 @@ static NSString* L(NSString *key) {
         @"recoil": @(g_noRecoil),
         @"ammo": @(g_unlimitedAmmo),
         @"trigger": @(g_triggerbot),
+        @"fps": @(g_fpsLimit),
         @"lang": @(g_language)
     };
     [config writeToFile:[self configPath] atomically:YES];
@@ -551,6 +778,7 @@ static NSString* L(NSString *key) {
         g_noRecoil = [config[@"recoil"] boolValue];
         g_unlimitedAmmo = [config[@"ammo"] boolValue];
         g_triggerbot = [config[@"trigger"] boolValue];
+        g_fpsLimit = [config[@"fps"] integerValue];
         g_language = [config[@"lang"] integerValue];
         
         UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"✅" message:g_language == 0 ? @"Config loaded!" : @"Конфиг загружен!" preferredStyle:UIAlertControllerStyleAlert];
@@ -567,22 +795,8 @@ static NSString* L(NSString *key) {
 
 @end
 
-// ============ ЭКСПОРТ ============
-UIViewController *Lucky77CreateMenuViewController(void) {
-    L77MenuViewController *vc = [L77MenuViewController new];
-    vc.modalPresentationStyle = UIModalPresentationOverFullScreen;
-    return vc;
-}
-
-void Lucky77PresentMenu(UIViewController *presenter) {
-    if (!presenter) return;
-    [presenter presentViewController:Lucky77CreateMenuViewController() animated:NO completion:nil];
-}
-
-// ============ ТОЧКА ВХОДА ============
+// ============ ТОЧКА ВХОДА (ЗАМЕНЯЕТ %ctor) ============
 __attribute__((constructor)) void init() {
-    NSLog(@"[Lucky77] ✅ INIT CALLED!");
-    
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
         UIWindow *window = nil;
         if (@available(iOS 13.0, *)) {
@@ -599,12 +813,23 @@ __attribute__((constructor)) void init() {
             }
         }
         if (!window) {
+            #pragma clang diagnostic push
+            #pragma clang diagnostic ignored "-Wdeprecated-declarations"
+            window = [UIApplication sharedApplication].keyWindow;
+            #pragma clang diagnostic pop
+        }
+        if (!window) {
+            #pragma clang diagnostic push
+            #pragma clang diagnostic ignored "-Wdeprecated-declarations"
             window = [UIApplication sharedApplication].windows.firstObject;
+            #pragma clang diagnostic pop
         }
         UIViewController *root = window.rootViewController;
         if (root) {
-            Lucky77PresentMenu(root);
-            NSLog(@"[Lucky77] ✅ Menu presented!");
+            L77MenuViewController *menuVC = [L77MenuViewController new];
+            menuVC.modalPresentationStyle = UIModalPresentationOverFullScreen;
+            [root presentViewController:menuVC animated:NO completion:nil];
+            NSLog(@"[Lucky77] ✅ Tweak injected!");
         } else {
             NSLog(@"[Lucky77] ❌ No root view controller");
         }
