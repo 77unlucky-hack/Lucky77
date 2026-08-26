@@ -14,7 +14,7 @@ BOOL g_triggerbot = NO;
 NSInteger g_fpsLimit = 60;
 NSInteger g_language = 0;
 
-// Ссылка на логотип (УБЕДИСЬ, ЧТО ЭТА ССЫЛКА ПРАВИЛЬНАЯ!)
+// ============ ПРАВИЛЬНАЯ ССЫЛКА НА ЛОГОТИП (RAW) ============
 #define LOGO_URL @"https://raw.githubusercontent.com/77unlucky-hack/Lucky77/main/logo.png"
 
 // ============ ЛОКАЛИЗАЦИЯ ============
@@ -174,12 +174,19 @@ static NSString* L(NSString *key) {
 - (void)viewDidLoad {
     [super viewDidLoad];
     
-    // ============ КЛЮЧЕВЫЕ НАСТРОЙКИ ============
+    // ============ ФИКС: ПРОЗРАЧНЫЙ ФОН И ПРОПУСК КАСАНИЙ ============
+    // Делаем фон полностью прозрачным, чтобы игра была видна
     self.view.backgroundColor = [UIColor clearColor];
     self.view.opaque = NO;
-    self.view.userInteractionEnabled = YES;
-    self.modalPresentationStyle = UIModalPresentationOverFullScreen;
+    
+    // Ключевой момент: делаем view НЕ принимающей касания,
+    // чтобы все касания шли в игру
+    self.view.userInteractionEnabled = NO;
+    
+    // Используем OverCurrentContext, чтобы не блокировать игру
+    self.modalPresentationStyle = UIModalPresentationOverCurrentContext;
     self.modalTransitionStyle = UIModalTransitionStyleCrossDissolve;
+    
     self.logoLoaded = NO;
     
     self.config = [NSMutableDictionary dictionary];
@@ -199,17 +206,19 @@ static NSString* L(NSString *key) {
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
     self.view.backgroundColor = [UIColor clearColor];
+    // Убеждаемся, что view не блокирует касания
+    self.view.userInteractionEnabled = NO;
 }
 
 - (void)dealloc {
     [self.displayLink invalidate];
 }
 
-// ============ КНОПКА-ЛАУНЧЕР ============
+// ============ КНОПКА-ЛАУНЧЕР (ЕДИНСТВЕННЫЙ ЭЛЕМЕНТ С КАСАНИЯМИ) ============
 - (void)buildLauncherButton {
     self.launcherButton = [UIButton buttonWithType:UIButtonTypeSystem];
     self.launcherButton.translatesAutoresizingMaskIntoConstraints = NO;
-    self.launcherButton.backgroundColor = [Lucky77Theme.panel colorWithAlphaComponent:0.95];
+    self.launcherButton.backgroundColor = [Lucky77Theme.panel colorWithAlphaComponent:0.9];
     self.launcherButton.layer.cornerRadius = 14;
     self.launcherButton.layer.borderWidth = 1.5;
     self.launcherButton.layer.borderColor = Lucky77Theme.purple.CGColor;
@@ -220,6 +229,9 @@ static NSString* L(NSString *key) {
     [self.launcherButton setTitleColor:Lucky77Theme.purpleGlow forState:UIControlStateNormal];
     self.launcherButton.titleLabel.font = [UIFont systemFontOfSize:28 weight:UIFontWeightBold];
     [self.launcherButton addTarget:self action:@selector(toggleMenu) forControlEvents:UIControlEventTouchUpInside];
+    
+    // Кнопка должна принимать касания
+    self.launcherButton.userInteractionEnabled = YES;
     
     UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(dragLauncher:)];
     [self.launcherButton addGestureRecognizer:pan];
@@ -260,6 +272,7 @@ static NSString* L(NSString *key) {
     self.menuCard.layer.shadowOpacity = 0.6;
     self.menuCard.layer.shadowRadius = 28;
     self.menuCard.hidden = YES;
+    // Меню должно принимать касания (когда оно открыто)
     self.menuCard.userInteractionEnabled = YES;
     [self.view addSubview:self.menuCard];
     
@@ -581,7 +594,7 @@ static NSString* L(NSString *key) {
     return container;
 }
 
-// ============ INTRO АНИМАЦИЯ С ЗАГРУЗКОЙ ЛОГОТИПА ============
+// ============ INTRO АНИМАЦИЯ С ЛОГОТИПОМ ============
 - (void)buildIntroAnimation {
     self.introView = [UIView new];
     self.introView.translatesAutoresizingMaskIntoConstraints = NO;
@@ -606,7 +619,7 @@ static NSString* L(NSString *key) {
     self.logoView.backgroundColor = Lucky77Theme.purple; // Запасной фон
     [self.introView addSubview:self.logoView];
     
-    // Загружаем логотип
+    // Загружаем логотип по ПРАВИЛЬНОЙ ссылке
     [self loadLogo];
     
     // ============ НАЗВАНИЕ ============
@@ -661,7 +674,7 @@ static NSString* L(NSString *key) {
     }];
 }
 
-// ============ ЗАГРУЗКА ЛОГОТИПА ============
+// ============ ЗАГРУЗКА ЛОГОТИПА ПО ПРАВИЛЬНОЙ ССЫЛКЕ ============
 - (void)loadLogo {
     NSURL *url = [NSURL URLWithString:LOGO_URL];
     NSLog(@"[Lucky77] Loading logo from: %@", LOGO_URL);
@@ -699,21 +712,29 @@ static NSString* L(NSString *key) {
 // ============ УПРАВЛЕНИЕ МЕНЮ ============
 - (void)toggleMenu {
     if (self.menuCard.hidden) {
+        // Открываем меню
         self.menuCard.hidden = NO;
         self.menuCard.alpha = 0;
         self.launcherButton.hidden = YES;
-        self.view.backgroundColor = [UIColor clearColor];
+        
+        // Когда меню открыто, оно должно принимать касания
+        self.view.userInteractionEnabled = YES;
+        self.menuCard.userInteractionEnabled = YES;
         
         [UIView animateWithDuration:0.3 animations:^{
             self.menuCard.alpha = 1;
         }];
     } else {
+        // Закрываем меню
         [UIView animateWithDuration:0.22 animations:^{
             self.menuCard.alpha = 0;
         } completion:^(BOOL finished) {
             self.menuCard.hidden = YES;
             self.menuCard.alpha = 1;
             self.launcherButton.hidden = NO;
+            
+            // Когда меню закрыто, касания идут в игру
+            self.view.userInteractionEnabled = NO;
         }];
     }
 }
@@ -846,7 +867,7 @@ static NSString* L(NSString *key) {
 // ============ ЭКСПОРТ ФУНКЦИЙ ============
 UIViewController *Lucky77CreateMenuViewController(void) {
     L77MenuViewController *vc = [L77MenuViewController new];
-    vc.modalPresentationStyle = UIModalPresentationOverFullScreen;
+    vc.modalPresentationStyle = UIModalPresentationOverCurrentContext;
     return vc;
 }
 
