@@ -48,8 +48,6 @@ static NSString* L(NSString *key) {
             @"save_config": @"SAVE CONFIG",
             @"load_config": @"LOAD CONFIG",
             @"fps": @"FPS",
-            @"game_not_found": @"Game not found",
-            @"initializing": @"Initializing...",
         };
         ruStrings = @{
             @"app_name": @"Lucky77",
@@ -76,8 +74,6 @@ static NSString* L(NSString *key) {
             @"save_config": @"СОХРАНИТЬ КОНФИГ",
             @"load_config": @"ЗАГРУЗИТЬ КОНФИГ",
             @"fps": @"FPS",
-            @"game_not_found": @"Игра не найдена",
-            @"initializing": @"Загрузка...",
         };
     });
     return g_language == 0 ? enStrings[key] : ruStrings[key];
@@ -179,8 +175,13 @@ static NSString* L(NSString *key) {
 
 - (void)viewDidLoad {
     [super viewDidLoad];
+    
+    // ============ ФИКС: ПРОЗРАЧНЫЙ ФОН И ПРОПУСК КАСАНИЙ ============
     self.view.backgroundColor = [UIColor clearColor];
-    self.modalPresentationStyle = UIModalPresentationOverFullScreen;
+    self.view.opaque = NO;
+    self.view.userInteractionEnabled = YES; // Меню принимает касания
+    self.modalPresentationStyle = UIModalPresentationOverCurrentContext;
+    self.modalTransitionStyle = UIModalTransitionStyleCrossDissolve;
     
     self.config = [NSMutableDictionary dictionary];
     [self loadConfig];
@@ -194,6 +195,12 @@ static NSString* L(NSString *key) {
     [self buildMenu];
     [self buildIntroAnimation];
     [self startFPS];
+}
+
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    // Убеждаемся, что меню не блокирует игру
+    self.view.backgroundColor = [UIColor clearColor];
 }
 
 - (void)dealloc {
@@ -255,6 +262,7 @@ static NSString* L(NSString *key) {
     self.menuCard.layer.shadowOpacity = 0.6;
     self.menuCard.layer.shadowRadius = 28;
     self.menuCard.hidden = YES;
+    self.menuCard.userInteractionEnabled = YES;
     [self.view addSubview:self.menuCard];
     
     [NSLayoutConstraint activateConstraints:@[
@@ -579,8 +587,9 @@ static NSString* L(NSString *key) {
 - (void)buildIntroAnimation {
     self.introView = [UIView new];
     self.introView.translatesAutoresizingMaskIntoConstraints = NO;
-    self.introView.backgroundColor = [Lucky77Theme.background colorWithAlphaComponent:0.98];
+    self.introView.backgroundColor = [Lucky77Theme.background colorWithAlphaComponent:0.95];
     self.introView.layer.cornerRadius = 20;
+    self.introView.userInteractionEnabled = NO;
     [self.view addSubview:self.introView];
     
     [NSLayoutConstraint activateConstraints:@[
@@ -599,6 +608,7 @@ static NSString* L(NSString *key) {
     self.logoView.backgroundColor = Lucky77Theme.purple;
     [self.introView addSubview:self.logoView];
     
+    // Загружаем логотип
     [self loadLogo];
     
     // Название
@@ -647,6 +657,7 @@ static NSString* L(NSString *key) {
                 self.introView.transform = CGAffineTransformMakeScale(1.2, 1.2);
             } completion:^(BOOL finished2) {
                 self.introView.hidden = YES;
+                [self.introView removeFromSuperview];
             }];
         });
     }];
@@ -654,15 +665,26 @@ static NSString* L(NSString *key) {
 
 - (void)loadLogo {
     NSURL *url = [NSURL URLWithString:LOGO_URL];
-    NSURLSessionTask *task = [[NSURLSession sharedSession] dataTaskWithURL:url completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+    NSURLSession *session = [NSURLSession sharedSession];
+    NSURLSessionDataTask *task = [session dataTaskWithURL:url completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
         if (data && !error) {
             UIImage *image = [UIImage imageWithData:data];
-            dispatch_async(dispatch_get_main_queue(), ^{
-                if (image) self.logoView.image = image;
-            });
+            if (image) {
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    self.logoView.image = image;
+                    self.logoView.backgroundColor = [UIColor clearColor];
+                });
+            }
         }
     }];
     [task resume];
+    
+    // Если логотип не загрузился через 3 секунды, показываем фиолетовый квадрат
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+        if (!self.logoView.image) {
+            self.logoView.backgroundColor = Lucky77Theme.purple;
+        }
+    });
 }
 
 // ============ УПРАВЛЕНИЕ МЕНЮ ============
@@ -671,6 +693,9 @@ static NSString* L(NSString *key) {
         self.menuCard.hidden = NO;
         self.menuCard.alpha = 0;
         self.launcherButton.hidden = YES;
+        
+        // Убеждаемся, что игра не блокируется
+        self.view.backgroundColor = [UIColor clearColor];
         
         [UIView animateWithDuration:0.3 animations:^{
             self.menuCard.alpha = 1;
@@ -814,13 +839,13 @@ static NSString* L(NSString *key) {
 // ============ ЭКСПОРТ ФУНКЦИЙ ============
 UIViewController *Lucky77CreateMenuViewController(void) {
     L77MenuViewController *vc = [L77MenuViewController new];
-    vc.modalPresentationStyle = UIModalPresentationOverFullScreen;
+    vc.modalPresentationStyle = UIModalPresentationOverCurrentContext;
     return vc;
 }
 
 void Lucky77PresentMenu(UIViewController *presenter) {
     if (!presenter) return;
-    [presenter presentViewController:Lucky77CreateMenuViewController() animated:YES completion:nil];
+    [presenter presentViewController:Lucky77CreateMenuViewController() animated:NO completion:nil];
 }
 
 // ============ ТОЧКА ВХОДА ============
