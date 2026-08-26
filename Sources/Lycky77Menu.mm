@@ -392,4 +392,101 @@ BOOL g_triggerbot = NO;
     [self.intro addSubview:self.statusLabel];
 
     [NSLayoutConstraint activateConstraints:@[
-        [self.intro.leadingAnchor constraintEqualToAnchor:self.menuCard.
+        [self.intro.leadingAnchor constraintEqualToAnchor:self.menuCard.leadingAnchor],
+        [self.intro.trailingAnchor constraintEqualToAnchor:self.menuCard.trailingAnchor],
+        [self.intro.topAnchor constraintEqualToAnchor:self.menuCard.topAnchor],
+        [self.intro.bottomAnchor constraintEqualToAnchor:self.menuCard.bottomAnchor],
+        [label.centerXAnchor constraintEqualToAnchor:self.intro.centerXAnchor],
+        [label.centerYAnchor constraintEqualToAnchor:self.intro.centerYAnchor constant:-20],
+        [self.statusLabel.centerXAnchor constraintEqualToAnchor:self.intro.centerXAnchor],
+        [self.statusLabel.topAnchor constraintEqualToAnchor:label.bottomAnchor constant:12],
+    ]];
+
+    self.menuCard.hidden = YES;
+}
+
+- (void)updateStatus {
+    uintptr_t base = [MemoryUtils getGameBase];
+    BOOL hooked = [HooksManager isHooked];
+    self.statusLabel.text = base ? 
+        [NSString stringWithFormat:@"Base: 0x%lx | Hooks: %@", (unsigned long)base, hooked ? @"✅" : @"❌"] :
+        @"Game not found";
+}
+
+- (void)toggleMenu {
+    if (self.menuCard.hidden) {
+        self.menuCard.hidden = NO;
+        self.menuCard.alpha = 1;
+        self.intro.alpha = 0;
+        self.intro.hidden = NO;
+        [self updateStatus];
+        [UIView animateWithDuration:0.55 animations:^{
+            self.intro.alpha = 1;
+        } completion:^(BOOL finished) {
+            [UIView animateWithDuration:0.55 delay:1.45 options:UIViewAnimationOptionCurveEaseInOut animations:^{
+                self.intro.alpha = 0;
+            } completion:^(BOOL finished2) {
+                self.intro.hidden = YES;
+            }];
+        }];
+    } else {
+        [UIView animateWithDuration:0.22 animations:^{
+            self.menuCard.alpha = 0;
+        } completion:^(BOOL finished) {
+            self.menuCard.hidden = YES;
+            self.menuCard.alpha = 1;
+        }];
+    }
+}
+
+- (void)navTapped:(UIButton *)sender {
+    for (UIView *v in sender.superview.subviews) {
+        if ([v isKindOfClass:UIButton.class]) {
+            UIButton *b = (UIButton *)v;
+            b.backgroundColor = UIColor.clearColor;
+        }
+    }
+    sender.backgroundColor = [Lucky77Theme.purpleDark colorWithAlphaComponent:0.9];
+}
+
+- (void)startFPS {
+    self.displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(tick:)];
+    [self.displayLink addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
+}
+
+- (void)tick:(CADisplayLink *)link {
+    if (self.lastTimestamp == 0) self.lastTimestamp = link.timestamp;
+    self.frameCount += 1;
+    CFTimeInterval elapsed = link.timestamp - self.lastTimestamp;
+    if (elapsed >= 0.5) {
+        double fps = self.frameCount / elapsed;
+        self.fpsLabel.text = [NSString stringWithFormat:@"%.0f FPS", fps];
+        self.frameCount = 0;
+        self.lastTimestamp = link.timestamp;
+    }
+}
+
+@end
+
+// ============ ЭКСПОРТИРУЕМЫЕ ФУНКЦИИ ============
+
+UIViewController *Lucky77CreateMenuViewController(void) {
+    L77MenuViewController *vc = [L77MenuViewController new];
+    vc.modalPresentationStyle = UIModalPresentationFullScreen;
+    return vc;
+}
+
+void Lucky77PresentMenu(UIViewController *presenter) {
+    if (!presenter) return;
+    [presenter presentViewController:Lucky77CreateMenuViewController() animated:YES completion:nil];
+}
+
+// Точка входа при загрузке библиотеки
+__attribute__((constructor)) void init() {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIViewController *root = [UIApplication sharedApplication].keyWindow.rootViewController;
+        if (root) {
+            Lucky77PresentMenu(root);
+        }
+    });
+}
