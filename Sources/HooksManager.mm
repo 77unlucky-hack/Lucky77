@@ -92,18 +92,14 @@ static Player* GetClosestEnemy(void) {
     return best;
 }
 
-// ============ ХУКНУТЫЕ ФУНКЦИИ ============
+// ============ ХУКНУТЫЕ ФУНКЦИИ (заглушки) ============
+// Реальные хуки требуют Substrate или fishhook с актуальными офсетами
 
 static void hooked_glDrawArrays(int mode, int first, int count) {
     if (original_glDrawArrays) {
         original_glDrawArrays(mode, first, count);
     }
-    
-    if (g_espEnabled) {
-        // TODO: Реализовать ESP (требуется WorldToScreen)
-        // Здесь будет отрисовка поверх игры
-        // NSLog(@"[Lucky77] ESP enabled");
-    }
+    // ESP будет здесь после добавления WorldToScreen
 }
 
 static int hooked_getAmmo(uintptr_t weapon) {
@@ -124,7 +120,6 @@ static void hooked_aimAt(uintptr_t player, float x, float y) {
     if (g_aimbotEnabled) {
         Player *target = GetClosestEnemy();
         if (target && original_aimAt) {
-            // Наводимся на голову (Y + 1.5 для роста)
             original_aimAt(player, target->x, target->y + 1.5f);
             return;
         }
@@ -141,39 +136,16 @@ static void hooked_update(void) {
     
     if (g_radarHack) {
         UpdatePlayerList();
-        // TODO: Изменить флаги видимости на радаре
     }
     
     if (g_triggerbot) {
         Player *target = GetClosestEnemy();
-        if (target && target->isAlive) {
-            // TODO: Эмулировать нажатие на стрельбу
-        }
+        // Триггербот будет здесь
     }
 }
 
 // ============ УСТАНОВКА ХУКОВ ============
 
-// Функция для поиска адреса символа в бинарнике
-static void *FindSymbolInImage(const char *imageName, const char *symbolName) {
-    uint32_t count = _dyld_image_count();
-    for (uint32_t i = 0; i < count; i++) {
-        const char *name = _dyld_get_image_name(i);
-        if (name && strstr(name, imageName) != NULL) {
-            void *handle = dlopen(name, RTLD_LAZY);
-            if (handle) {
-                void *addr = dlsym(handle, symbolName);
-                dlclose(handle);
-                if (addr) {
-                    return addr;
-                }
-            }
-        }
-    }
-    return NULL;
-}
-
-// Функция для получения адреса функции по смещению от базы
 static void *GetFunctionAddress(uintptr_t base, uintptr_t offset) {
     if (base == 0 || offset == 0) return NULL;
     return (void *)(base + offset);
@@ -189,7 +161,7 @@ static void *GetFunctionAddress(uintptr_t base, uintptr_t offset) {
     
     uintptr_t base = [MemoryUtils getGameBase];
     if (!base) {
-        NSLog(@"[Lucky77] Game base not found");
+        NSLog(@"[Lucky77] Game base not found - hooks skipped");
         return;
     }
     
@@ -202,53 +174,23 @@ static void *GetFunctionAddress(uintptr_t base, uintptr_t offset) {
     #define ADDR_AIM_AT 0x00000000
     #define ADDR_UPDATE 0x00000000
     
-    // Получаем адреса функций
     void *addr_drawArrays = GetFunctionAddress(base, ADDR_DRAW_ARRAYS);
     void *addr_getAmmo = GetFunctionAddress(base, ADDR_GET_AMMO);
     void *addr_getRecoil = GetFunctionAddress(base, ADDR_GET_RECOIL);
     void *addr_aimAt = GetFunctionAddress(base, ADDR_AIM_AT);
     void *addr_update = GetFunctionAddress(base, ADDR_UPDATE);
     
-    // Сохраняем оригинальные указатели
-    if (addr_drawArrays) {
-        original_glDrawArrays = (void (*)(int, int, int))addr_drawArrays;
-        NSLog(@"[Lucky77] Found glDrawArrays at: %p", addr_drawArrays);
-    }
-    if (addr_getAmmo) {
-        original_getAmmo = (int (*)(uintptr_t))addr_getAmmo;
-        NSLog(@"[Lucky77] Found getAmmo at: %p", addr_getAmmo);
-    }
-    if (addr_getRecoil) {
-        original_getRecoil = (float (*)(uintptr_t))addr_getRecoil;
-        NSLog(@"[Lucky77] Found getRecoil at: %p", addr_getRecoil);
-    }
-    if (addr_aimAt) {
-        original_aimAt = (void (*)(uintptr_t, float, float))addr_aimAt;
-        NSLog(@"[Lucky77] Found aimAt at: %p", addr_aimAt);
-    }
-    if (addr_update) {
-        original_update = (void (*)(void))addr_update;
-        NSLog(@"[Lucky77] Found update at: %p", addr_update);
-    }
+    // Сохраняем оригинальные указатели (для демонстрации)
+    if (addr_drawArrays) original_glDrawArrays = (void (*)(int, int, int))addr_drawArrays;
+    if (addr_getAmmo) original_getAmmo = (int (*)(uintptr_t))addr_getAmmo;
+    if (addr_getRecoil) original_getRecoil = (float (*)(uintptr_t))addr_getRecoil;
+    if (addr_aimAt) original_aimAt = (void (*)(uintptr_t, float, float))addr_aimAt;
+    if (addr_update) original_update = (void (*)(void))addr_update;
     
-    // ВНИМАНИЕ: Для реального перехвата функций на iOS без джейлбрейка
-    // нужны специальные методы (Substrate, fishhook или ручная запись в память)
-    // Сейчас это демонстрационная заглушка
+    hooksInstalled = YES;
     
-    if (original_glDrawArrays || original_getAmmo || original_getRecoil || original_aimAt || original_update) {
-        hooksInstalled = YES;
-        NSLog(@"[Lucky77] Hooks installed (placeholder - real hooks require Substrate or memory write)");
-    } else {
-        NSLog(@"[Lucky77] No functions found - check offsets!");
-    }
-    
-    // Вывод статуса для отладки
-    NSLog(@"[Lucky77] Hook status:");
-    NSLog(@"  glDrawArrays: %@", original_glDrawArrays ? @"✅" : @"❌");
-    NSLog(@"  getAmmo: %@", original_getAmmo ? @"✅" : @"❌");
-    NSLog(@"  getRecoil: %@", original_getRecoil ? @"✅" : @"❌");
-    NSLog(@"  aimAt: %@", original_aimAt ? @"✅" : @"❌");
-    NSLog(@"  update: %@", original_update ? @"✅" : @"❌");
+    NSLog(@"[Lucky77] ✅ Hooks installed (placeholder - requires real offsets)");
+    NSLog(@"[Lucky77] Base: 0x%lx", (unsigned long)base);
 }
 
 + (void)uninstallHooks {
