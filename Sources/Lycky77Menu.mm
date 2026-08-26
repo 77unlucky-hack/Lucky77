@@ -14,6 +14,7 @@ BOOL g_triggerbot = NO;
 NSInteger g_fpsLimit = 60;
 NSInteger g_language = 0;
 
+// Ссылка на логотип (УБЕДИСЬ, ЧТО ЭТА ССЫЛКА ПРАВИЛЬНАЯ!)
 #define LOGO_URL @"https://raw.githubusercontent.com/77unlucky-hack/Lucky77/main/logo.png"
 
 // ============ ЛОКАЛИЗАЦИЯ ============
@@ -24,7 +25,6 @@ static NSString* L(NSString *key) {
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         enStrings = @{
-            @"app_name": @"Lucky77",
             @"aimbot": @"AIMBOT",
             @"visuals": @"VISUALS",
             @"settings": @"SETTINGS",
@@ -40,7 +40,6 @@ static NSString* L(NSString *key) {
             @"radar_hack": @"RADAR HACK",
             @"no_recoil": @"NO RECOIL",
             @"unlimited_ammo": @"UNLIMITED AMMO",
-            @"settings_tab": @"SETTINGS",
             @"language": @"LANGUAGE",
             @"fps_limit": @"FPS LIMIT",
             @"developer": @"DEVELOPER",
@@ -50,7 +49,6 @@ static NSString* L(NSString *key) {
             @"fps": @"FPS",
         };
         ruStrings = @{
-            @"app_name": @"Lucky77",
             @"aimbot": @"АИМБОТ",
             @"visuals": @"ВИЗУАЛ",
             @"settings": @"НАСТРОЙКИ",
@@ -66,7 +64,6 @@ static NSString* L(NSString *key) {
             @"radar_hack": @"РАДАР",
             @"no_recoil": @"БЕЗ ОТДАЧИ",
             @"unlimited_ammo": @"БЕСКОНЕЧНЫЕ ПАТРОНЫ",
-            @"settings_tab": @"НАСТРОЙКИ",
             @"language": @"ЯЗЫК",
             @"fps_limit": @"ЛИМИТ FPS",
             @"developer": @"РАЗРАБОТЧИК",
@@ -169,6 +166,7 @@ static NSString* L(NSString *key) {
 @property (nonatomic, strong) UIScrollView *sidebarScroll;
 @property (nonatomic, strong) UIStackView *navStack;
 @property (nonatomic, strong) NSArray *navButtons;
+@property (nonatomic, assign) BOOL logoLoaded;
 @end
 
 @implementation L77MenuViewController
@@ -176,12 +174,13 @@ static NSString* L(NSString *key) {
 - (void)viewDidLoad {
     [super viewDidLoad];
     
-    // ============ ФИКС: ПРОЗРАЧНЫЙ ФОН И ПРОПУСК КАСАНИЙ ============
+    // ============ КЛЮЧЕВЫЕ НАСТРОЙКИ ============
     self.view.backgroundColor = [UIColor clearColor];
     self.view.opaque = NO;
-    self.view.userInteractionEnabled = YES; // Меню принимает касания
-    self.modalPresentationStyle = UIModalPresentationOverCurrentContext;
+    self.view.userInteractionEnabled = YES;
+    self.modalPresentationStyle = UIModalPresentationOverFullScreen;
     self.modalTransitionStyle = UIModalTransitionStyleCrossDissolve;
+    self.logoLoaded = NO;
     
     self.config = [NSMutableDictionary dictionary];
     [self loadConfig];
@@ -199,7 +198,6 @@ static NSString* L(NSString *key) {
 
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
-    // Убеждаемся, что меню не блокирует игру
     self.view.backgroundColor = [UIColor clearColor];
 }
 
@@ -583,7 +581,7 @@ static NSString* L(NSString *key) {
     return container;
 }
 
-// ============ INTRO АНИМАЦИЯ ============
+// ============ INTRO АНИМАЦИЯ С ЗАГРУЗКОЙ ЛОГОТИПА ============
 - (void)buildIntroAnimation {
     self.introView = [UIView new];
     self.introView.translatesAutoresizingMaskIntoConstraints = NO;
@@ -599,19 +597,19 @@ static NSString* L(NSString *key) {
         [self.introView.heightAnchor constraintEqualToConstant:300],
     ]];
     
-    // Логотип
+    // ============ ЛОГОТИП ============
     self.logoView = [UIImageView new];
     self.logoView.translatesAutoresizingMaskIntoConstraints = NO;
     self.logoView.contentMode = UIViewContentModeScaleAspectFit;
     self.logoView.layer.cornerRadius = 20;
     self.logoView.clipsToBounds = YES;
-    self.logoView.backgroundColor = Lucky77Theme.purple;
+    self.logoView.backgroundColor = Lucky77Theme.purple; // Запасной фон
     [self.introView addSubview:self.logoView];
     
     // Загружаем логотип
     [self loadLogo];
     
-    // Название
+    // ============ НАЗВАНИЕ ============
     self.titleLabel = [UILabel new];
     self.titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.titleLabel.text = @"Lucky77";
@@ -623,7 +621,7 @@ static NSString* L(NSString *key) {
     self.titleLabel.layer.shadowRadius = 20;
     [self.introView addSubview:self.titleLabel];
     
-    // Версия
+    // ============ ВЕРСИЯ ============
     self.versionLabel = [UILabel new];
     self.versionLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.versionLabel.text = @"v0.1";
@@ -643,7 +641,7 @@ static NSString* L(NSString *key) {
         [self.versionLabel.topAnchor constraintEqualToAnchor:self.titleLabel.bottomAnchor constant:4],
     ]];
     
-    // Анимация
+    // ============ АНИМАЦИЯ ============
     self.introView.transform = CGAffineTransformMakeScale(0.5, 0.5);
     self.introView.alpha = 0;
     
@@ -663,28 +661,39 @@ static NSString* L(NSString *key) {
     }];
 }
 
+// ============ ЗАГРУЗКА ЛОГОТИПА ============
 - (void)loadLogo {
     NSURL *url = [NSURL URLWithString:LOGO_URL];
-    NSURLSession *session = [NSURLSession sharedSession];
+    NSLog(@"[Lucky77] Loading logo from: %@", LOGO_URL);
+    
+    NSURLSessionConfiguration *config = [NSURLSessionConfiguration defaultSessionConfiguration];
+    config.timeoutIntervalForRequest = 10.0;
+    config.timeoutIntervalForResource = 15.0;
+    NSURLSession *session = [NSURLSession sessionWithConfiguration:config];
+    
     NSURLSessionDataTask *task = [session dataTaskWithURL:url completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
-        if (data && !error) {
+        if (error) {
+            NSLog(@"[Lucky77] Logo download error: %@", error.localizedDescription);
+            return;
+        }
+        
+        if (data && data.length > 0) {
             UIImage *image = [UIImage imageWithData:data];
             if (image) {
                 dispatch_async(dispatch_get_main_queue(), ^{
                     self.logoView.image = image;
                     self.logoView.backgroundColor = [UIColor clearColor];
+                    self.logoLoaded = YES;
+                    NSLog(@"[Lucky77] Logo loaded successfully! Size: %.0fx%.0f", image.size.width, image.size.height);
                 });
+            } else {
+                NSLog(@"[Lucky77] Failed to create image from data");
             }
+        } else {
+            NSLog(@"[Lucky77] No data received");
         }
     }];
     [task resume];
-    
-    // Если логотип не загрузился через 3 секунды, показываем фиолетовый квадрат
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-        if (!self.logoView.image) {
-            self.logoView.backgroundColor = Lucky77Theme.purple;
-        }
-    });
 }
 
 // ============ УПРАВЛЕНИЕ МЕНЮ ============
@@ -693,8 +702,6 @@ static NSString* L(NSString *key) {
         self.menuCard.hidden = NO;
         self.menuCard.alpha = 0;
         self.launcherButton.hidden = YES;
-        
-        // Убеждаемся, что игра не блокируется
         self.view.backgroundColor = [UIColor clearColor];
         
         [UIView animateWithDuration:0.3 animations:^{
@@ -839,7 +846,7 @@ static NSString* L(NSString *key) {
 // ============ ЭКСПОРТ ФУНКЦИЙ ============
 UIViewController *Lucky77CreateMenuViewController(void) {
     L77MenuViewController *vc = [L77MenuViewController new];
-    vc.modalPresentationStyle = UIModalPresentationOverCurrentContext;
+    vc.modalPresentationStyle = UIModalPresentationOverFullScreen;
     return vc;
 }
 
@@ -850,7 +857,7 @@ void Lucky77PresentMenu(UIViewController *presenter) {
 
 // ============ ТОЧКА ВХОДА ============
 __attribute__((constructor)) void init() {
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
         UIWindow *window = nil;
         if (@available(iOS 13.0, *)) {
             for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
@@ -871,6 +878,9 @@ __attribute__((constructor)) void init() {
         UIViewController *root = window.rootViewController;
         if (root) {
             Lucky77PresentMenu(root);
+            NSLog(@"[Lucky77] ✅ Menu injected!");
+        } else {
+            NSLog(@"[Lucky77] ❌ No root view controller");
         }
     });
 }
