@@ -1,0 +1,28 @@
+# Xcode
+*.xcodeproj
+*.xcworkspace
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.xcuserstate
+project.xcworkspace/
+xcuserdata/
+DerivedData/
+
+# Build
+build/
+*.dylib
+*.ipa
+*.deb
+*.o
+*.dSYM/
+
+# macOS
+.DS_Store
+*.swp
+*.swo
+*.lock
+
+# GitHub
+*.log
