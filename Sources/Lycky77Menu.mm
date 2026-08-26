@@ -146,9 +146,6 @@ static NSString* L(NSString *key) {
 // ============ ГЛАВНЫЙ КОНТРОЛЛЕР ============
 @interface L77MenuViewController : UIViewController
 @property (nonatomic, strong) UIView *menuCard;
-@property (nonatomic, strong) UIView *introView;
-@property (nonatomic, strong) UILabel *titleLabel;
-@property (nonatomic, strong) UILabel *versionLabel;
 @property (nonatomic, strong) UILabel *fpsLabel;
 @property (nonatomic, strong) CADisplayLink *displayLink;
 @property (nonatomic, assign) CFTimeInterval lastTimestamp;
@@ -169,11 +166,15 @@ static NSString* L(NSString *key) {
 - (void)viewDidLoad {
     [super viewDidLoad];
     
+    // ============ КЛЮЧЕВЫЕ НАСТРОЙКИ ДЛЯ ПРЕДОТВРАЩЕНИЯ ЗАВИСАНИЙ ============
     self.view.backgroundColor = [UIColor clearColor];
     self.view.opaque = NO;
-    self.view.userInteractionEnabled = NO;
+    self.view.userInteractionEnabled = NO; // По умолчанию не блокируем игру
     self.modalPresentationStyle = UIModalPresentationOverCurrentContext;
     self.modalTransitionStyle = UIModalTransitionStyleCrossDissolve;
+    
+    // Отключаем анимацию для ускорения
+    self.view.alpha = 1;
     
     self.config = [NSMutableDictionary dictionary];
     [self loadConfig];
@@ -183,15 +184,17 @@ static NSString* L(NSString *key) {
         [HooksManager installHooks];
     });
     
+    // Максимально упрощаем инициализацию
     [self buildLauncherButton];
     [self buildMenu];
-    [self buildIntroAnimation];
     [self startFPS];
 }
 
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
     self.view.backgroundColor = [UIColor clearColor];
+    // Не блокируем игру
+    self.view.userInteractionEnabled = NO;
 }
 
 - (void)dealloc {
@@ -202,16 +205,16 @@ static NSString* L(NSString *key) {
 - (void)buildLauncherButton {
     self.launcherButton = [UIButton buttonWithType:UIButtonTypeSystem];
     self.launcherButton.translatesAutoresizingMaskIntoConstraints = NO;
-    self.launcherButton.backgroundColor = [Lucky77Theme.panel colorWithAlphaComponent:0.9];
+    self.launcherButton.backgroundColor = [Lucky77Theme.panel colorWithAlphaComponent:0.85];
     self.launcherButton.layer.cornerRadius = 14;
-    self.launcherButton.layer.borderWidth = 1.5;
+    self.launcherButton.layer.borderWidth = 1;
     self.launcherButton.layer.borderColor = Lucky77Theme.purple.CGColor;
     self.launcherButton.layer.shadowColor = Lucky77Theme.purpleGlow.CGColor;
-    self.launcherButton.layer.shadowOpacity = 0.4;
-    self.launcherButton.layer.shadowRadius = 14;
+    self.launcherButton.layer.shadowOpacity = 0.3;
+    self.launcherButton.layer.shadowRadius = 10;
     [self.launcherButton setTitle:@"⚡" forState:UIControlStateNormal];
     [self.launcherButton setTitleColor:Lucky77Theme.purpleGlow forState:UIControlStateNormal];
-    self.launcherButton.titleLabel.font = [UIFont systemFontOfSize:28 weight:UIFontWeightBold];
+    self.launcherButton.titleLabel.font = [UIFont systemFontOfSize:24 weight:UIFontWeightBold];
     self.launcherButton.userInteractionEnabled = YES;
     [self.launcherButton addTarget:self action:@selector(toggleMenu) forControlEvents:UIControlEventTouchUpInside];
     
@@ -221,10 +224,10 @@ static NSString* L(NSString *key) {
     [self.view addSubview:self.launcherButton];
     
     [NSLayoutConstraint activateConstraints:@[
-        [self.launcherButton.leadingAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.leadingAnchor constant:12],
-        [self.launcherButton.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:12],
-        [self.launcherButton.widthAnchor constraintEqualToConstant:48],
-        [self.launcherButton.heightAnchor constraintEqualToConstant:48],
+        [self.launcherButton.leadingAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.leadingAnchor constant:10],
+        [self.launcherButton.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:10],
+        [self.launcherButton.widthAnchor constraintEqualToConstant:44],
+        [self.launcherButton.heightAnchor constraintEqualToConstant:44],
     ]];
 }
 
@@ -246,22 +249,22 @@ static NSString* L(NSString *key) {
 - (void)buildMenu {
     self.menuCard = [UIView new];
     self.menuCard.translatesAutoresizingMaskIntoConstraints = NO;
-    self.menuCard.backgroundColor = [Lucky77Theme.panel colorWithAlphaComponent:0.92];
-    self.menuCard.layer.cornerRadius = 20;
+    self.menuCard.backgroundColor = [Lucky77Theme.panel colorWithAlphaComponent:0.9];
+    self.menuCard.layer.cornerRadius = 16;
     self.menuCard.layer.borderWidth = 1;
     self.menuCard.layer.borderColor = Lucky77Theme.border.CGColor;
     self.menuCard.layer.shadowColor = UIColor.blackColor.CGColor;
-    self.menuCard.layer.shadowOpacity = 0.6;
-    self.menuCard.layer.shadowRadius = 28;
+    self.menuCard.layer.shadowOpacity = 0.5;
+    self.menuCard.layer.shadowRadius = 20;
     self.menuCard.hidden = YES;
     self.menuCard.userInteractionEnabled = YES;
     [self.view addSubview:self.menuCard];
     
     [NSLayoutConstraint activateConstraints:@[
-        [self.menuCard.leadingAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.leadingAnchor constant:80],
-        [self.menuCard.trailingAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.trailingAnchor constant:-20],
-        [self.menuCard.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:18],
-        [self.menuCard.bottomAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.bottomAnchor constant:-18],
+        [self.menuCard.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor constant:40],
+        [self.menuCard.centerYAnchor constraintEqualToAnchor:self.view.centerYAnchor],
+        [self.menuCard.widthAnchor constraintEqualToConstant:300],
+        [self.menuCard.heightAnchor constraintEqualToConstant:350],
     ]];
     
     // HEADER
@@ -272,23 +275,20 @@ static NSString* L(NSString *key) {
     self.fpsLabel = [UILabel new];
     self.fpsLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.fpsLabel.text = @"-- FPS";
-    self.fpsLabel.font = [Lucky77Theme bodyFont:13];
+    self.fpsLabel.font = [Lucky77Theme bodyFont:12];
     self.fpsLabel.textColor = Lucky77Theme.purpleGlow;
     
     UILabel *logo = [UILabel new];
     logo.translatesAutoresizingMaskIntoConstraints = NO;
     logo.text = @"⚡";
-    logo.font = [UIFont systemFontOfSize:28 weight:UIFontWeightBold];
+    logo.font = [UIFont systemFontOfSize:22 weight:UIFontWeightBold];
     logo.textColor = Lucky77Theme.purpleGlow;
-    logo.layer.shadowColor = Lucky77Theme.purpleGlow.CGColor;
-    logo.layer.shadowOpacity = 0.7;
-    logo.layer.shadowRadius = 12;
     
     UIButton *close = [UIButton buttonWithType:UIButtonTypeSystem];
     close.translatesAutoresizingMaskIntoConstraints = NO;
     [close setTitle:@"✕" forState:UIControlStateNormal];
     [close setTitleColor:Lucky77Theme.purpleGlow forState:UIControlStateNormal];
-    close.titleLabel.font = [Lucky77Theme titleFont:24];
+    close.titleLabel.font = [Lucky77Theme titleFont:18];
     [close addTarget:self action:@selector(toggleMenu) forControlEvents:UIControlEventTouchUpInside];
     
     [header addSubview:self.fpsLabel];
@@ -299,15 +299,15 @@ static NSString* L(NSString *key) {
         [header.leadingAnchor constraintEqualToAnchor:self.menuCard.leadingAnchor],
         [header.trailingAnchor constraintEqualToAnchor:self.menuCard.trailingAnchor],
         [header.topAnchor constraintEqualToAnchor:self.menuCard.topAnchor],
-        [header.heightAnchor constraintEqualToConstant:50],
-        [self.fpsLabel.leadingAnchor constraintEqualToAnchor:header.leadingAnchor constant:18],
+        [header.heightAnchor constraintEqualToConstant:40],
+        [self.fpsLabel.leadingAnchor constraintEqualToAnchor:header.leadingAnchor constant:12],
         [self.fpsLabel.centerYAnchor constraintEqualToAnchor:header.centerYAnchor],
         [logo.centerXAnchor constraintEqualToAnchor:header.centerXAnchor],
         [logo.centerYAnchor constraintEqualToAnchor:header.centerYAnchor],
-        [close.trailingAnchor constraintEqualToAnchor:header.trailingAnchor constant:-14],
+        [close.trailingAnchor constraintEqualToAnchor:header.trailingAnchor constant:-10],
         [close.centerYAnchor constraintEqualToAnchor:header.centerYAnchor],
-        [close.widthAnchor constraintEqualToConstant:36],
-        [close.heightAnchor constraintEqualToConstant:36],
+        [close.widthAnchor constraintEqualToConstant:30],
+        [close.heightAnchor constraintEqualToConstant:30],
     ]];
     
     UIView *divider = [UIView new];
@@ -315,18 +315,19 @@ static NSString* L(NSString *key) {
     divider.backgroundColor = Lucky77Theme.border;
     [self.menuCard addSubview:divider];
     
-    // SIDEBAR
+    // SIDEBAR - упрощённая
     self.sidebarScroll = [UIScrollView new];
     self.sidebarScroll.translatesAutoresizingMaskIntoConstraints = NO;
-    self.sidebarScroll.backgroundColor = [Lucky77Theme.background colorWithAlphaComponent:0.7];
-    self.sidebarScroll.layer.cornerRadius = 14;
-    self.sidebarScroll.showsVerticalScrollIndicator = YES;
+    self.sidebarScroll.backgroundColor = [Lucky77Theme.background colorWithAlphaComponent:0.5];
+    self.sidebarScroll.layer.cornerRadius = 10;
+    self.sidebarScroll.showsVerticalScrollIndicator = NO;
     [self.menuCard addSubview:self.sidebarScroll];
     
     self.navStack = [[UIStackView alloc] init];
     self.navStack.translatesAutoresizingMaskIntoConstraints = NO;
     self.navStack.axis = UILayoutConstraintAxisVertical;
-    self.navStack.spacing = 7;
+    self.navStack.spacing = 4;
+    self.navStack.distribution = UIStackViewDistributionFillEqually;
     [self.sidebarScroll addSubview:self.navStack];
     
     self.menuItems = @[@"aimbot", @"visuals", @"settings"];
@@ -335,13 +336,12 @@ static NSString* L(NSString *key) {
     
     for (NSInteger i = 0; i < self.menuItems.count; i++) {
         UIButton *b = [UIButton buttonWithType:UIButtonTypeSystem];
-        b.contentHorizontalAlignment = UIControlContentHorizontalAlignmentLeft;
-        [b setTitle:[NSString stringWithFormat:@"   %@", sections[i]] forState:UIControlStateNormal];
+        b.contentHorizontalAlignment = UIControlContentHorizontalAlignmentCenter;
+        [b setTitle:sections[i] forState:UIControlStateNormal];
         [b setTitleColor:Lucky77Theme.textPrimary forState:UIControlStateNormal];
-        b.titleLabel.font = [Lucky77Theme bodyFont:14];
-        b.layer.cornerRadius = 8;
-        b.backgroundColor = (i == 0) ? [Lucky77Theme.purpleDark colorWithAlphaComponent:0.9] : UIColor.clearColor;
-        [b.heightAnchor constraintEqualToConstant:40].active = YES;
+        b.titleLabel.font = [Lucky77Theme bodyFont:13];
+        b.layer.cornerRadius = 6;
+        b.backgroundColor = (i == 0) ? [Lucky77Theme.purpleDark colorWithAlphaComponent:0.8] : UIColor.clearColor;
         b.tag = i;
         [b addTarget:self action:@selector(navTapped:) forControlEvents:UIControlEventTouchUpInside];
         [self.navStack addArrangedSubview:b];
@@ -349,16 +349,16 @@ static NSString* L(NSString *key) {
     }
     self.navButtons = buttons;
     
-    // CONTENT
+    // CONTENT - упрощённый
     UIScrollView *scroll = [UIScrollView new];
     scroll.translatesAutoresizingMaskIntoConstraints = NO;
-    scroll.showsVerticalScrollIndicator = YES;
+    scroll.showsVerticalScrollIndicator = NO;
     [self.menuCard addSubview:scroll];
     
     self.contentStack = [[UIStackView alloc] init];
     self.contentStack.translatesAutoresizingMaskIntoConstraints = NO;
     self.contentStack.axis = UILayoutConstraintAxisVertical;
-    self.contentStack.spacing = 16;
+    self.contentStack.spacing = 8;
     [scroll addSubview:self.contentStack];
     
     UIView *defaultContent = [self makeContentForTab:0];
@@ -370,81 +370,101 @@ static NSString* L(NSString *key) {
         [divider.topAnchor constraintEqualToAnchor:header.bottomAnchor],
         [divider.heightAnchor constraintEqualToConstant:1],
         
-        [self.sidebarScroll.leadingAnchor constraintEqualToAnchor:self.menuCard.leadingAnchor constant:12],
-        [self.sidebarScroll.topAnchor constraintEqualToAnchor:divider.bottomAnchor constant:12],
-        [self.sidebarScroll.bottomAnchor constraintEqualToAnchor:self.menuCard.bottomAnchor constant:-12],
-        [self.sidebarScroll.widthAnchor constraintEqualToConstant:160],
+        [self.sidebarScroll.leadingAnchor constraintEqualToAnchor:self.menuCard.leadingAnchor constant:8],
+        [self.sidebarScroll.topAnchor constraintEqualToAnchor:divider.bottomAnchor constant:8],
+        [self.sidebarScroll.bottomAnchor constraintEqualToAnchor:self.menuCard.bottomAnchor constant:-8],
+        [self.sidebarScroll.widthAnchor constraintEqualToConstant:70],
         
-        [self.navStack.leadingAnchor constraintEqualToAnchor:self.sidebarScroll.leadingAnchor constant:14],
-        [self.navStack.trailingAnchor constraintEqualToAnchor:self.sidebarScroll.trailingAnchor constant:-14],
-        [self.navStack.topAnchor constraintEqualToAnchor:self.sidebarScroll.topAnchor constant:18],
-        [self.navStack.bottomAnchor constraintEqualToAnchor:self.sidebarScroll.bottomAnchor constant:-18],
-        [self.navStack.widthAnchor constraintEqualToAnchor:self.sidebarScroll.widthAnchor constant:-28],
+        [self.navStack.leadingAnchor constraintEqualToAnchor:self.sidebarScroll.leadingAnchor],
+        [self.navStack.trailingAnchor constraintEqualToAnchor:self.sidebarScroll.trailingAnchor],
+        [self.navStack.topAnchor constraintEqualToAnchor:self.sidebarScroll.topAnchor],
+        [self.navStack.bottomAnchor constraintEqualToAnchor:self.sidebarScroll.bottomAnchor],
         
-        [scroll.leadingAnchor constraintEqualToAnchor:self.sidebarScroll.trailingAnchor constant:14],
-        [scroll.trailingAnchor constraintEqualToAnchor:self.menuCard.trailingAnchor constant:-12],
-        [scroll.topAnchor constraintEqualToAnchor:divider.bottomAnchor constant:12],
-        [scroll.bottomAnchor constraintEqualToAnchor:self.menuCard.bottomAnchor constant:-12],
+        [scroll.leadingAnchor constraintEqualToAnchor:self.sidebarScroll.trailingAnchor constant:8],
+        [scroll.trailingAnchor constraintEqualToAnchor:self.menuCard.trailingAnchor constant:-8],
+        [scroll.topAnchor constraintEqualToAnchor:divider.bottomAnchor constant:8],
+        [scroll.bottomAnchor constraintEqualToAnchor:self.menuCard.bottomAnchor constant:-8],
         
-        [self.contentStack.leadingAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.leadingAnchor],
-        [self.contentStack.trailingAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.trailingAnchor],
-        [self.contentStack.topAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.topAnchor],
-        [self.contentStack.bottomAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.bottomAnchor],
-        [self.contentStack.widthAnchor constraintEqualToAnchor:scroll.frameLayoutGuide.widthAnchor],
+        [self.contentStack.leadingAnchor constraintEqualToAnchor:scroll.leadingAnchor],
+        [self.contentStack.trailingAnchor constraintEqualToAnchor:scroll.trailingAnchor],
+        [self.contentStack.topAnchor constraintEqualToAnchor:scroll.topAnchor],
+        [self.contentStack.bottomAnchor constraintEqualToAnchor:scroll.bottomAnchor],
+        [self.contentStack.widthAnchor constraintEqualToAnchor:scroll.widthAnchor],
     ]];
 }
 
-// ============ КОНТЕНТ ВКЛАДОК ============
+// ============ КОНТЕНТ ВКЛАДОК (упрощённый) ============
 - (UIView *)makeContentForTab:(NSInteger)tabIndex {
     switch (tabIndex) {
-        case 0: return [self makeAimbotContent];
-        case 1: return [self makeVisualsContent];
+        case 0: return [self makeColumn:@[L(@"enable_aimbot"), L(@"triggerbot"), L(@"smooth_aim"), L(@"visible_check")]
+                                 keys:@[@"aimbot", @"trigger", @"smooth", @"visible"]];
+        case 1: return [self makeColumn:@[L(@"esp_box"), L(@"esp_name"), L(@"esp_health"), L(@"snap_lines"), L(@"radar_hack"), L(@"no_recoil"), L(@"unlimited_ammo")]
+                                 keys:@[@"esp", @"name", @"health", @"lines", @"radar", @"recoil", @"ammo"]];
         case 2: return [self makeSettingsContent];
-        default: return [self makeAimbotContent];
+        default: return [self makeColumn:@[L(@"enable_aimbot")] keys:@[@"aimbot"]];
     }
 }
 
-- (UIView *)makeAimbotContent {
-    return [self makeColumn:L(@"aimbot")
-                     items:@[L(@"enable_aimbot"), L(@"triggerbot"), L(@"smooth_aim"), L(@"visible_check")]
-                     keys:@[@"aimbot", @"trigger", @"smooth", @"visible"]];
-}
-
-- (UIView *)makeVisualsContent {
-    return [self makeColumn:L(@"visuals")
-                     items:@[L(@"esp_box"), L(@"esp_name"), L(@"esp_health"), L(@"snap_lines"), L(@"radar_hack"), L(@"no_recoil"), L(@"unlimited_ammo")]
-                     keys:@[@"esp", @"name", @"health", @"lines", @"radar", @"recoil", @"ammo"]];
-}
-
-- (UIView *)makeSettingsContent {
+- (UIView *)makeColumn:(NSArray *)items keys:(NSArray *)keys {
     UIView *container = [UIView new];
-    container.backgroundColor = [Lucky77Theme.panelAlt colorWithAlphaComponent:0.7];
-    container.layer.cornerRadius = 14;
+    container.backgroundColor = [Lucky77Theme.panelAlt colorWithAlphaComponent:0.5];
+    container.layer.cornerRadius = 10;
     container.layer.borderWidth = 1;
     container.layer.borderColor = Lucky77Theme.border.CGColor;
     
     UIStackView *stack = [UIStackView new];
     stack.translatesAutoresizingMaskIntoConstraints = NO;
     stack.axis = UILayoutConstraintAxisVertical;
-    stack.spacing = 12;
+    stack.spacing = 4;
     [container addSubview:stack];
     
+    for (NSInteger i = 0; i < items.count && i < keys.count; i++) {
+        L77DemoToggle *t = [[L77DemoToggle alloc] initWithTitle:items[i] key:keys[i]];
+        [stack addArrangedSubview:t];
+    }
+    
+    [NSLayoutConstraint activateConstraints:@[
+        [stack.leadingAnchor constraintEqualToAnchor:container.leadingAnchor constant:10],
+        [stack.trailingAnchor constraintEqualToAnchor:container.trailingAnchor constant:-10],
+        [stack.topAnchor constraintEqualToAnchor:container.topAnchor constant:8],
+        [stack.bottomAnchor constraintEqualToAnchor:container.bottomAnchor constant:-8],
+        [container.heightAnchor constraintGreaterThanOrEqualToConstant:120],
+    ]];
+    
+    return container;
+}
+
+- (UIView *)makeSettingsContent {
+    UIView *container = [UIView new];
+    container.backgroundColor = [Lucky77Theme.panelAlt colorWithAlphaComponent:0.5];
+    container.layer.cornerRadius = 10;
+    container.layer.borderWidth = 1;
+    container.layer.borderColor = Lucky77Theme.border.CGColor;
+    
+    UIStackView *stack = [UIStackView new];
+    stack.translatesAutoresizingMaskIntoConstraints = NO;
+    stack.axis = UILayoutConstraintAxisVertical;
+    stack.spacing = 6;
+    [container addSubview:stack];
+    
+    // Язык
     UILabel *langLabel = [UILabel new];
     langLabel.text = L(@"language");
-    langLabel.font = [Lucky77Theme titleFont:16];
-    langLabel.textColor = Lucky77Theme.textPrimary;
+    langLabel.font = [Lucky77Theme bodyFont:12];
+    langLabel.textColor = Lucky77Theme.textSecondary;
     [stack addArrangedSubview:langLabel];
     
-    UISegmentedControl *langSeg = [[UISegmentedControl alloc] initWithItems:@[@"English", @"Русский"]];
+    UISegmentedControl *langSeg = [[UISegmentedControl alloc] initWithItems:@[@"EN", @"RU"]];
     langSeg.selectedSegmentIndex = g_language;
     langSeg.tintColor = Lucky77Theme.purple;
     [langSeg addTarget:self action:@selector(languageChanged:) forControlEvents:UIControlEventValueChanged];
     [stack addArrangedSubview:langSeg];
     
+    // FPS лимит
     UILabel *fpsLabel = [UILabel new];
     fpsLabel.text = L(@"fps_limit");
-    fpsLabel.font = [Lucky77Theme titleFont:16];
-    fpsLabel.textColor = Lucky77Theme.textPrimary;
+    fpsLabel.font = [Lucky77Theme bodyFont:12];
+    fpsLabel.textColor = Lucky77Theme.textSecondary;
     [stack addArrangedSubview:fpsLabel];
     
     UISegmentedControl *fpsSeg = [[UISegmentedControl alloc] initWithItems:@[@"30", @"60", @"90", @"120"]];
@@ -458,192 +478,49 @@ static NSString* L(NSString *key) {
     [fpsSeg addTarget:self action:@selector(fpsLimitChanged:) forControlEvents:UIControlEventValueChanged];
     [stack addArrangedSubview:fpsSeg];
     
-    UILabel *configLabel = [UILabel new];
-    configLabel.text = L(@"config");
-    configLabel.font = [Lucky77Theme titleFont:16];
-    configLabel.textColor = Lucky77Theme.textPrimary;
-    [stack addArrangedSubview:configLabel];
-    
+    // Конфиги
     UIStackView *configButtons = [UIStackView new];
     configButtons.axis = UILayoutConstraintAxisHorizontal;
-    configButtons.spacing = 12;
+    configButtons.spacing = 8;
     configButtons.distribution = UIStackViewDistributionFillEqually;
     
     UIButton *saveBtn = [UIButton buttonWithType:UIButtonTypeSystem];
     [saveBtn setTitle:L(@"save_config") forState:UIControlStateNormal];
     saveBtn.backgroundColor = Lucky77Theme.purple;
-    saveBtn.layer.cornerRadius = 8;
+    saveBtn.layer.cornerRadius = 6;
     [saveBtn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    saveBtn.titleLabel.font = [Lucky77Theme bodyFont:11];
     [saveBtn addTarget:self action:@selector(saveConfig) forControlEvents:UIControlEventTouchUpInside];
     [configButtons addArrangedSubview:saveBtn];
     
     UIButton *loadBtn = [UIButton buttonWithType:UIButtonTypeSystem];
     [loadBtn setTitle:L(@"load_config") forState:UIControlStateNormal];
     loadBtn.backgroundColor = Lucky77Theme.purpleDark;
-    loadBtn.layer.cornerRadius = 8;
+    loadBtn.layer.cornerRadius = 6;
     [loadBtn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    loadBtn.titleLabel.font = [Lucky77Theme bodyFont:11];
     [loadBtn addTarget:self action:@selector(loadConfig) forControlEvents:UIControlEventTouchUpInside];
     [configButtons addArrangedSubview:loadBtn];
     
     [stack addArrangedSubview:configButtons];
     
-    UILabel *devLabel = [UILabel new];
-    devLabel.text = L(@"developer");
-    devLabel.font = [Lucky77Theme titleFont:16];
-    devLabel.textColor = Lucky77Theme.textPrimary;
-    [stack addArrangedSubview:devLabel];
-    
+    // Разработчик
     UIButton *devBtn = [UIButton buttonWithType:UIButtonTypeSystem];
-    [devBtn setTitle:@"@hack77ios" forState:UIControlStateNormal];
+    [devBtn setTitle:@"👨‍💻 @hack77ios" forState:UIControlStateNormal];
     [devBtn setTitleColor:Lucky77Theme.purpleGlow forState:UIControlStateNormal];
-    devBtn.titleLabel.font = [Lucky77Theme bodyFont:16];
+    devBtn.titleLabel.font = [Lucky77Theme bodyFont:12];
     [devBtn addTarget:self action:@selector(openTelegram) forControlEvents:UIControlEventTouchUpInside];
     [stack addArrangedSubview:devBtn];
     
     [NSLayoutConstraint activateConstraints:@[
-        [stack.leadingAnchor constraintEqualToAnchor:container.leadingAnchor constant:18],
-        [stack.trailingAnchor constraintEqualToAnchor:container.trailingAnchor constant:-18],
-        [stack.topAnchor constraintEqualToAnchor:container.topAnchor constant:18],
-        [stack.bottomAnchor constraintLessThanOrEqualToAnchor:container.bottomAnchor constant:-18],
-        [container.heightAnchor constraintGreaterThanOrEqualToConstant:400],
+        [stack.leadingAnchor constraintEqualToAnchor:container.leadingAnchor constant:10],
+        [stack.trailingAnchor constraintEqualToAnchor:container.trailingAnchor constant:-10],
+        [stack.topAnchor constraintEqualToAnchor:container.topAnchor constant:8],
+        [stack.bottomAnchor constraintEqualToAnchor:container.bottomAnchor constant:-8],
+        [container.heightAnchor constraintGreaterThanOrEqualToConstant:180],
     ]];
     
     return container;
-}
-
-// ============ ОБЩИЙ КОМПОНЕНТ КОЛОНКИ ============
-- (UIView *)makeColumn:(NSString *)title items:(NSArray *)items keys:(NSArray *)keys {
-    UIView *container = [UIView new];
-    container.backgroundColor = [Lucky77Theme.panelAlt colorWithAlphaComponent:0.7];
-    container.layer.cornerRadius = 14;
-    container.layer.borderWidth = 1;
-    container.layer.borderColor = Lucky77Theme.border.CGColor;
-    
-    UIStackView *stack = [UIStackView new];
-    stack.translatesAutoresizingMaskIntoConstraints = NO;
-    stack.axis = UILayoutConstraintAxisVertical;
-    stack.spacing = 8;
-    [container addSubview:stack];
-    
-    UILabel *heading = [UILabel new];
-    heading.text = title;
-    heading.font = [Lucky77Theme titleFont:16];
-    heading.textColor = Lucky77Theme.purpleGlow;
-    [stack addArrangedSubview:heading];
-    
-    UIView *line = [UIView new];
-    line.backgroundColor = Lucky77Theme.border;
-    [line.heightAnchor constraintEqualToConstant:1].active = YES;
-    [stack addArrangedSubview:line];
-    
-    for (NSInteger i = 0; i < items.count && i < keys.count; i++) {
-        L77DemoToggle *t = [[L77DemoToggle alloc] initWithTitle:items[i] key:keys[i]];
-        [stack addArrangedSubview:t];
-    }
-    
-    if ([title isEqualToString:L(@"aimbot")]) {
-        UILabel *sliderLabel = [UILabel new];
-        sliderLabel.text = [NSString stringWithFormat:@"%@: 90°", L(@"fov_slider")];
-        sliderLabel.font = [Lucky77Theme bodyFont:12];
-        sliderLabel.textColor = Lucky77Theme.textSecondary;
-        [stack addArrangedSubview:sliderLabel];
-        
-        UISlider *slider = [UISlider new];
-        slider.minimumValue = 0;
-        slider.maximumValue = 360;
-        slider.value = 90;
-        slider.minimumTrackTintColor = Lucky77Theme.purple;
-        slider.maximumTrackTintColor = [UIColor colorWithWhite:0.35 alpha:0.35];
-        slider.thumbTintColor = Lucky77Theme.purpleGlow;
-        [slider addTarget:self action:@selector(fovChanged:) forControlEvents:UIControlEventValueChanged];
-        [stack addArrangedSubview:slider];
-    }
-    
-    [NSLayoutConstraint activateConstraints:@[
-        [stack.leadingAnchor constraintEqualToAnchor:container.leadingAnchor constant:18],
-        [stack.trailingAnchor constraintEqualToAnchor:container.trailingAnchor constant:-18],
-        [stack.topAnchor constraintEqualToAnchor:container.topAnchor constant:18],
-        [stack.bottomAnchor constraintLessThanOrEqualToAnchor:container.bottomAnchor constant:-18],
-        [container.heightAnchor constraintGreaterThanOrEqualToConstant:300],
-    ]];
-    
-    return container;
-}
-
-// ============ INTRO АНИМАЦИЯ ============
-- (void)buildIntroAnimation {
-    self.introView = [UIView new];
-    self.introView.translatesAutoresizingMaskIntoConstraints = NO;
-    self.introView.backgroundColor = [Lucky77Theme.background colorWithAlphaComponent:0.95];
-    self.introView.layer.cornerRadius = 20;
-    self.introView.userInteractionEnabled = NO;
-    [self.view addSubview:self.introView];
-    
-    [NSLayoutConstraint activateConstraints:@[
-        [self.introView.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
-        [self.introView.centerYAnchor constraintEqualToAnchor:self.view.centerYAnchor],
-        [self.introView.widthAnchor constraintEqualToConstant:280],
-        [self.introView.heightAnchor constraintEqualToConstant:260],
-    ]];
-    
-    UILabel *bigLogo = [UILabel new];
-    bigLogo.translatesAutoresizingMaskIntoConstraints = NO;
-    bigLogo.text = @"⚡";
-    bigLogo.font = [UIFont systemFontOfSize:80 weight:UIFontWeightBold];
-    bigLogo.textColor = Lucky77Theme.purpleGlow;
-    bigLogo.textAlignment = NSTextAlignmentCenter;
-    bigLogo.layer.shadowColor = Lucky77Theme.purpleGlow.CGColor;
-    bigLogo.layer.shadowOpacity = 0.9;
-    bigLogo.layer.shadowRadius = 30;
-    [self.introView addSubview:bigLogo];
-    
-    self.titleLabel = [UILabel new];
-    self.titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    self.titleLabel.text = @"Lucky77";
-    self.titleLabel.font = [UIFont systemFontOfSize:36 weight:UIFontWeightBold];
-    self.titleLabel.textColor = Lucky77Theme.purpleGlow;
-    self.titleLabel.textAlignment = NSTextAlignmentCenter;
-    self.titleLabel.layer.shadowColor = Lucky77Theme.purpleGlow.CGColor;
-    self.titleLabel.layer.shadowOpacity = 0.8;
-    self.titleLabel.layer.shadowRadius = 20;
-    [self.introView addSubview:self.titleLabel];
-    
-    self.versionLabel = [UILabel new];
-    self.versionLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    self.versionLabel.text = @"v0.1";
-    self.versionLabel.font = [Lucky77Theme bodyFont:16];
-    self.versionLabel.textColor = Lucky77Theme.textSecondary;
-    self.versionLabel.textAlignment = NSTextAlignmentCenter;
-    [self.introView addSubview:self.versionLabel];
-    
-    [NSLayoutConstraint activateConstraints:@[
-        [bigLogo.centerXAnchor constraintEqualToAnchor:self.introView.centerXAnchor],
-        [bigLogo.topAnchor constraintEqualToAnchor:self.introView.topAnchor constant:20],
-        [bigLogo.widthAnchor constraintEqualToConstant:100],
-        [bigLogo.heightAnchor constraintEqualToConstant:100],
-        [self.titleLabel.centerXAnchor constraintEqualToAnchor:self.introView.centerXAnchor],
-        [self.titleLabel.topAnchor constraintEqualToAnchor:bigLogo.bottomAnchor constant:8],
-        [self.versionLabel.centerXAnchor constraintEqualToAnchor:self.introView.centerXAnchor],
-        [self.versionLabel.topAnchor constraintEqualToAnchor:self.titleLabel.bottomAnchor constant:4],
-    ]];
-    
-    self.introView.transform = CGAffineTransformMakeScale(0.5, 0.5);
-    self.introView.alpha = 0;
-    
-    [UIView animateWithDuration:0.8 delay:0.2 usingSpringWithDamping:0.7 initialSpringVelocity:0.5 options:0 animations:^{
-        self.introView.transform = CGAffineTransformIdentity;
-        self.introView.alpha = 1;
-    } completion:^(BOOL finished) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.5 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-            [UIView animateWithDuration:0.6 animations:^{
-                self.introView.alpha = 0;
-                self.introView.transform = CGAffineTransformMakeScale(1.2, 1.2);
-            } completion:^(BOOL finished2) {
-                self.introView.hidden = YES;
-                [self.introView removeFromSuperview];
-            }];
-        });
-    }];
 }
 
 // ============ УПРАВЛЕНИЕ МЕНЮ ============
@@ -652,18 +529,20 @@ static NSString* L(NSString *key) {
         self.menuCard.hidden = NO;
         self.menuCard.alpha = 0;
         self.launcherButton.hidden = YES;
+        // Когда меню открыто - блокируем игру (только для кликов по меню)
         self.view.userInteractionEnabled = YES;
         
-        [UIView animateWithDuration:0.3 animations:^{
+        [UIView animateWithDuration:0.2 animations:^{
             self.menuCard.alpha = 1;
         }];
     } else {
-        [UIView animateWithDuration:0.22 animations:^{
+        [UIView animateWithDuration:0.15 animations:^{
             self.menuCard.alpha = 0;
         } completion:^(BOOL finished) {
             self.menuCard.hidden = YES;
             self.menuCard.alpha = 1;
             self.launcherButton.hidden = NO;
+            // Возвращаем игре управление
             self.view.userInteractionEnabled = NO;
         }];
     }
@@ -676,7 +555,7 @@ static NSString* L(NSString *key) {
             b.backgroundColor = UIColor.clearColor;
         }
     }
-    sender.backgroundColor = [Lucky77Theme.purpleDark colorWithAlphaComponent:0.9];
+    sender.backgroundColor = [Lucky77Theme.purpleDark colorWithAlphaComponent:0.8];
     [self switchToTab:sender.tag];
 }
 
@@ -727,20 +606,7 @@ static NSString* L(NSString *key) {
     NSArray *sections = @[L(@"aimbot"), L(@"visuals"), L(@"settings")];
     for (NSInteger i = 0; i < self.navButtons.count && i < sections.count; i++) {
         UIButton *btn = self.navButtons[i];
-        [btn setTitle:[NSString stringWithFormat:@"   %@", sections[i]] forState:UIControlStateNormal];
-    }
-}
-
-- (void)fovChanged:(UISlider *)slider {
-    UIStackView *stack = (UIStackView *)slider.superview;
-    for (UIView *view in stack.arrangedSubviews) {
-        if ([view isKindOfClass:[UILabel class]]) {
-            UILabel *label = (UILabel *)view;
-            if ([label.text containsString:L(@"fov_slider")]) {
-                label.text = [NSString stringWithFormat:@"%@: %.0f°", L(@"fov_slider"), slider.value];
-                break;
-            }
-        }
+        [btn setTitle:sections[i] forState:UIControlStateNormal];
     }
 }
 
