@@ -87,6 +87,9 @@ BOOL g_triggerbot = NO;
 @property(nonatomic,assign) NSInteger frameCount;
 @property(nonatomic,strong) UIStackView *contentStack;
 @property(nonatomic,strong) UILabel *statusLabel;
+@property(nonatomic,strong) UIButton *launcherButton;
+@property(nonatomic,assign) BOOL isDragging;
+@property(nonatomic,assign) CGPoint dragOffset;
 @end
 
 @implementation L77MenuViewController
@@ -112,27 +115,46 @@ BOOL g_triggerbot = NO;
 }
 
 - (void)buildLauncherButton {
-    UIButton *launcher = [UIButton buttonWithType:UIButtonTypeSystem];
-    launcher.translatesAutoresizingMaskIntoConstraints = NO;
-    launcher.backgroundColor = [Lucky77Theme.panel colorWithAlphaComponent:0.98];
-    launcher.layer.cornerRadius = 14;
-    launcher.layer.borderWidth = 1;
-    launcher.layer.borderColor = Lucky77Theme.purple.CGColor;
-    launcher.layer.shadowColor = Lucky77Theme.purpleGlow.CGColor;
-    launcher.layer.shadowOpacity = 0.35;
-    launcher.layer.shadowRadius = 12;
-    [launcher setTitle:@"77" forState:UIControlStateNormal];
-    [launcher setTitleColor:Lucky77Theme.purpleGlow forState:UIControlStateNormal];
-    launcher.titleLabel.font = [UIFont italicSystemFontOfSize:22];
-    [launcher addTarget:self action:@selector(toggleMenu) forControlEvents:UIControlEventTouchUpInside];
-    [self.view addSubview:launcher];
+    self.launcherButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    self.launcherButton.translatesAutoresizingMaskIntoConstraints = NO;
+    self.launcherButton.backgroundColor = [Lucky77Theme.panel colorWithAlphaComponent:0.98];
+    self.launcherButton.layer.cornerRadius = 14;
+    self.launcherButton.layer.borderWidth = 1;
+    self.launcherButton.layer.borderColor = Lucky77Theme.purple.CGColor;
+    self.launcherButton.layer.shadowColor = Lucky77Theme.purpleGlow.CGColor;
+    self.launcherButton.layer.shadowOpacity = 0.35;
+    self.launcherButton.layer.shadowRadius = 12;
+    [self.launcherButton setTitle:@"77" forState:UIControlStateNormal];
+    [self.launcherButton setTitleColor:Lucky77Theme.purpleGlow forState:UIControlStateNormal];
+    self.launcherButton.titleLabel.font = [UIFont italicSystemFontOfSize:22];
+    [self.launcherButton addTarget:self action:@selector(toggleMenu) forControlEvents:UIControlEventTouchUpInside];
+    
+    // Добавляем возможность перетаскивания
+    UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(dragLauncher:)];
+    [self.launcherButton addGestureRecognizer:pan];
+    
+    [self.view addSubview:self.launcherButton];
 
     [NSLayoutConstraint activateConstraints:@[
-        [launcher.leadingAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.leadingAnchor constant:12],
-        [launcher.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:12],
-        [launcher.widthAnchor constraintEqualToConstant:66],
-        [launcher.heightAnchor constraintEqualToConstant:48],
+        [self.launcherButton.leadingAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.leadingAnchor constant:12],
+        [self.launcherButton.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:12],
+        [self.launcherButton.widthAnchor constraintEqualToConstant:66],
+        [self.launcherButton.heightAnchor constraintEqualToConstant:48],
     ]];
+}
+
+- (void)dragLauncher:(UIPanGestureRecognizer *)gesture {
+    if (gesture.state == UIGestureRecognizerStateBegan) {
+        self.isDragging = YES;
+        CGPoint touch = [gesture locationInView:self.view];
+        CGPoint center = self.launcherButton.center;
+        self.dragOffset = CGPointMake(center.x - touch.x, center.y - touch.y);
+    } else if (gesture.state == UIGestureRecognizerStateChanged) {
+        CGPoint touch = [gesture locationInView:self.view];
+        self.launcherButton.center = CGPointMake(touch.x + self.dragOffset.x, touch.y + self.dragOffset.y);
+    } else if (gesture.state == UIGestureRecognizerStateEnded) {
+        self.isDragging = NO;
+    }
 }
 
 - (void)buildMenu {
@@ -484,9 +506,29 @@ void Lucky77PresentMenu(UIViewController *presenter) {
 // Точка входа при загрузке библиотеки
 __attribute__((constructor)) void init() {
     dispatch_async(dispatch_get_main_queue(), ^{
-        UIViewController *root = [UIApplication sharedApplication].keyWindow.rootViewController;
+        // Используем современный способ получения root view controller
+        UIWindow *window = nil;
+        if (@available(iOS 13.0, *)) {
+            for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
+                if (scene.activationState == UISceneActivationStateForegroundActive) {
+                    for (UIWindow *w in scene.windows) {
+                        if (w.isKeyWindow) {
+                            window = w;
+                            break;
+                        }
+                    }
+                    if (window) break;
+                }
+            }
+        } else {
+            window = [UIApplication sharedApplication].keyWindow;
+        }
+        
+        UIViewController *root = window.rootViewController;
         if (root) {
             Lucky77PresentMenu(root);
+        } else {
+            NSLog(@"[Lucky77] No root view controller found");
         }
     });
 }
