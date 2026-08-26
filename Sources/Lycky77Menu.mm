@@ -14,16 +14,16 @@ BOOL g_triggerbot = NO;
 NSInteger g_fpsLimit = 60;
 NSInteger g_language = 0;
 
-// Путь к логотипу на GitHub
 #define LOGO_URL @"https://raw.githubusercontent.com/77unlucky-hack/Lucky77/main/logo.png"
 
 // ============ ЛОКАЛИЗАЦИЯ ============
-NSDictionary* L(NSString *key) {
-    static NSDictionary *en = nil;
-    static NSDictionary *ru = nil;
+static NSDictionary *enStrings = nil;
+static NSDictionary *ruStrings = nil;
+
+static NSString* L(NSString *key) {
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        en = @{
+        enStrings = @{
             @"app_name": @"Lucky77",
             @"aimbot": @"AIMBOT",
             @"visuals": @"VISUALS",
@@ -55,7 +55,7 @@ NSDictionary* L(NSString *key) {
             @"fps_90": @"90 FPS",
             @"fps_120": @"120 FPS",
         };
-        ru = @{
+        ruStrings = @{
             @"app_name": @"Lucky77",
             @"aimbot": @"АИМБОТ",
             @"visuals": @"ВИЗУАЛ",
@@ -88,7 +88,7 @@ NSDictionary* L(NSString *key) {
             @"fps_120": @"120 FPS",
         };
     });
-    return g_language == 0 ? en[key] : ru[key];
+    return g_language == 0 ? enStrings[key] : ruStrings[key];
 }
 
 // ============ КАСТОМНЫЙ TOGGLE ============
@@ -180,6 +180,7 @@ NSDictionary* L(NSString *key) {
 @property (nonatomic, strong) NSMutableDictionary *config;
 @property (nonatomic, strong) UIScrollView *sidebarScroll;
 @property (nonatomic, strong) UIStackView *navStack;
+@property (nonatomic, strong) NSArray *navButtons;
 @end
 
 @implementation L77MenuViewController
@@ -338,6 +339,7 @@ NSDictionary* L(NSString *key) {
     
     self.menuItems = @[@"aimbot", @"visuals", @"settings"];
     NSArray *sections = @[L(@"aimbot"), L(@"visuals"), L(@"settings")];
+    NSMutableArray *buttons = [NSMutableArray array];
     
     for (NSInteger i = 0; i < self.menuItems.count; i++) {
         UIButton *b = [UIButton buttonWithType:UIButtonTypeSystem];
@@ -351,7 +353,9 @@ NSDictionary* L(NSString *key) {
         b.tag = i;
         [b addTarget:self action:@selector(navTapped:) forControlEvents:UIControlEventTouchUpInside];
         [self.navStack addArrangedSubview:b];
+        [buttons addObject:b];
     }
+    self.navButtons = buttons;
     
     // CONTENT
     UIScrollView *scroll = [UIScrollView new];
@@ -663,7 +667,6 @@ NSDictionary* L(NSString *key) {
             UIImage *image = [UIImage imageWithData:data];
             dispatch_async(dispatch_get_main_queue(), ^{
                 self.logoView.image = image;
-                // Если логотип не загрузился, используем дефолтный
                 if (!self.logoView.image) {
                     self.logoView.backgroundColor = Lucky77Theme.purple;
                     self.logoView.layer.cornerRadius = 20;
@@ -746,14 +749,24 @@ NSDictionary* L(NSString *key) {
 // ============ НАСТРОЙКИ ============
 - (void)languageChanged:(UISegmentedControl *)sender {
     g_language = sender.selectedSegmentIndex;
-    [self switchToTab:2]; // Обновляем вкладку настроек
-    [self.navTapped:(UIButton *)self.navStack.arrangedSubviews[2]];
+    [self refreshSettingsTab];
 }
 
 - (void)fpsLimitChanged:(UISegmentedControl *)sender {
     NSArray *values = @[@30, @60, @90, @120];
     g_fpsLimit = [values[sender.selectedSegmentIndex] integerValue];
     self.displayLink.preferredFramesPerSecond = g_fpsLimit;
+}
+
+- (void)refreshSettingsTab {
+    // Обновляем содержимое вкладки настроек
+    [self switchToTab:2];
+    // Обновляем заголовки кнопок в навигации
+    NSArray *sections = @[L(@"aimbot"), L(@"visuals"), L(@"settings")];
+    for (NSInteger i = 0; i < self.navButtons.count && i < sections.count; i++) {
+        UIButton *btn = self.navButtons[i];
+        [btn setTitle:[NSString stringWithFormat:@"   %@", sections[i]] forState:UIControlStateNormal];
+    }
 }
 
 - (void)fovChanged:(UISlider *)slider {
@@ -836,23 +849,26 @@ void Lucky77PresentMenu(UIViewController *presenter) {
 // ============ ТОЧКА ВХОДА ============
 __attribute__((constructor)) void init() {
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-        UIWindow *window = [UIApplication sharedApplication].windows.firstObject;
-        if (!window) {
-            if (@available(iOS 13.0, *)) {
-                for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
-                    if ([scene isKindOfClass:[UIWindowScene class]]) {
-                        UIWindowScene *ws = (UIWindowScene *)scene;
-                        if (ws.activationState == UISceneActivationStateForegroundActive) {
-                            for (UIWindow *w in ws.windows) {
-                                if (w.isKeyWindow) { window = w; break; }
-                            }
-                            if (window) break;
+        UIWindow *window = nil;
+        if (@available(iOS 13.0, *)) {
+            for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
+                if ([scene isKindOfClass:[UIWindowScene class]] && scene.activationState == UISceneActivationStateForegroundActive) {
+                    for (UIWindow *w in scene.windows) {
+                        if (w.isKeyWindow) {
+                            window = w;
+                            break;
                         }
                     }
+                    if (window) break;
                 }
             }
         }
+        if (!window) {
+            window = [UIApplication sharedApplication].windows.firstObject;
+        }
         UIViewController *root = window.rootViewController;
-        if (root) Lucky77PresentMenu(root);
+        if (root) {
+            Lucky77PresentMenu(root);
+        }
     });
 }
