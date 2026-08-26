@@ -93,7 +93,6 @@ static Player* GetClosestEnemy(void) {
 }
 
 // ============ ХУКНУТЫЕ ФУНКЦИИ (заглушки) ============
-// Реальные хуки требуют Substrate или fishhook с актуальными офсетами
 
 static void hooked_glDrawArrays(int mode, int first, int count) {
     if (original_glDrawArrays) {
