@@ -105,6 +105,7 @@ BOOL g_triggerbot = NO;
 @property (nonatomic, strong) UIButton *launcherButton;
 @property (nonatomic, assign) BOOL isDragging;
 @property (nonatomic, assign) CGPoint dragOffset;
+@property (nonatomic, assign) BOOL menuVisible;
 @end
 
 @implementation L77MenuViewController
@@ -112,6 +113,7 @@ BOOL g_triggerbot = NO;
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.view.backgroundColor = Lucky77Theme.background;
+    self.menuVisible = NO;
     
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
@@ -123,6 +125,11 @@ BOOL g_triggerbot = NO;
     [self buildIntro];
     [self startFPS];
     [self updateStatus];
+    
+    // Добавляем тройной тап как запасной способ вызова
+    UITapGestureRecognizer *tripleTap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(toggleMenu)];
+    tripleTap.numberOfTapsRequired = 3;
+    [self.view addGestureRecognizer:tripleTap];
 }
 
 - (void)dealloc {
@@ -183,6 +190,7 @@ BOOL g_triggerbot = NO;
     self.menuCard.layer.shadowColor = UIColor.blackColor.CGColor;
     self.menuCard.layer.shadowOpacity = 0.6;
     self.menuCard.layer.shadowRadius = 28;
+    self.menuCard.hidden = YES;
     [self.view addSubview:self.menuCard];
     
     [NSLayoutConstraint activateConstraints:@[
@@ -445,8 +453,6 @@ BOOL g_triggerbot = NO;
         [self.statusLabel.centerXAnchor constraintEqualToAnchor:self.intro.centerXAnchor],
         [self.statusLabel.topAnchor constraintEqualToAnchor:label.bottomAnchor constant:12],
     ]];
-    
-    self.menuCard.hidden = YES;
 }
 
 - (void)updateStatus {
@@ -461,10 +467,14 @@ BOOL g_triggerbot = NO;
 - (void)toggleMenu {
     if (self.menuCard.hidden) {
         self.menuCard.hidden = NO;
-        self.menuCard.alpha = 1;
+        self.menuCard.alpha = 0;
         self.intro.alpha = 0;
         self.intro.hidden = NO;
         [self updateStatus];
+        
+        [UIView animateWithDuration:0.3 animations:^{
+            self.menuCard.alpha = 1;
+        }];
         
         [UIView animateWithDuration:0.55 animations:^{
             self.intro.alpha = 1;
@@ -529,40 +539,44 @@ void Lucky77PresentMenu(UIViewController *presenter) {
     [presenter presentViewController:Lucky77CreateMenuViewController() animated:YES completion:nil];
 }
 
-// ============ ТОЧКА ВХОДА ============
+// ============ ТОЧКА ВХОДА С ПРИНУДИТЕЛЬНЫМ ВЫЗОВОМ ============
 __attribute__((constructor)) void init() {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        // Получаем root view controller современным способом
-        UIWindow *window = nil;
-        
-        if (@available(iOS 13.0, *)) {
-            NSSet *scenes = [UIApplication sharedApplication].connectedScenes;
-            for (UIScene *scene in scenes) {
-                if ([scene isKindOfClass:[UIWindowScene class]]) {
-                    UIWindowScene *windowScene = (UIWindowScene *)scene;
-                    if (windowScene.activationState == UISceneActivationStateForegroundActive) {
-                        for (UIWindow *w in windowScene.windows) {
-                            if (w.isKeyWindow) {
-                                window = w;
-                                break;
+    // Задержка для полной загрузки игры
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+        // Пробуем получить окно через windows.firstObject
+        UIWindow *window = [UIApplication sharedApplication].windows.firstObject;
+        if (!window) {
+            // Fallback: ищем через connectedScenes
+            if (@available(iOS 13.0, *)) {
+                NSSet *scenes = [UIApplication sharedApplication].connectedScenes;
+                for (UIScene *scene in scenes) {
+                    if ([scene isKindOfClass:[UIWindowScene class]]) {
+                        UIWindowScene *windowScene = (UIWindowScene *)scene;
+                        if (windowScene.activationState == UISceneActivationStateForegroundActive) {
+                            for (UIWindow *w in windowScene.windows) {
+                                if (w.isKeyWindow) {
+                                    window = w;
+                                    break;
+                                }
                             }
+                            if (window) break;
                         }
-                        if (window) break;
                     }
                 }
+            } else {
+                #pragma clang diagnostic push
+                #pragma clang diagnostic ignored "-Wdeprecated-declarations"
+                window = [UIApplication sharedApplication].keyWindow;
+                #pragma clang diagnostic pop
             }
-        } else {
-            #pragma clang diagnostic push
-            #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-            window = [UIApplication sharedApplication].keyWindow;
-            #pragma clang diagnostic pop
         }
         
         UIViewController *root = window.rootViewController;
         if (root) {
             Lucky77PresentMenu(root);
+            NSLog(@"[Lucky77] ✅ Menu injected successfully!");
         } else {
-            NSLog(@"[Lucky77] No root view controller found");
+            NSLog(@"[Lucky77] ❌ No root view controller found");
         }
     });
 }
