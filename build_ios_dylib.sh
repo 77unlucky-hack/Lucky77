@@ -20,7 +20,6 @@ mkdir -p build
 # Сборка всех .m и .mm файлов из папки Sources
 SOURCES=$(find Sources -name "*.m" -o -name "*.mm" | tr '\n' ' ')
 
-# Добавляем флаги для C++ поддержки и исключений
 "$CLANG" \
   -fobjc-arc \
   -fobjc-weak \
