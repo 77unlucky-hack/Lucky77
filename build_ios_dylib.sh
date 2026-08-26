@@ -1,49 +1,26 @@
 #!/bin/bash
 set -euo pipefail
 
-if [[ -z "${SDKROOT:-}" ]]; then
-    SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
-else
-    SDK="$SDKROOT"
-fi
-
+SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
 CLANG="$(xcrun --find clang)"
 ARCH="arm64"
 MIN_VERSION="15.0"
 
-echo "🔨 Building for iOS ${MIN_VERSION}+ on ${ARCH}..."
-echo "📁 SDK: $SDK"
-
 mkdir -p build
-
-SOURCES=$(find Sources -name "*.m" -o -name "*.mm" | tr '\n' ' ')
 
 "$CLANG" \
   -fobjc-arc \
   -fobjc-weak \
-  -fcxx-exceptions \
-  -fexceptions \
-  -stdlib=libc++ \
   -isysroot "$SDK" \
   -miphoneos-version-min=$MIN_VERSION \
   -arch $ARCH \
   -dynamiclib \
   -framework UIKit \
+  -framework AudioToolbox \
   -framework QuartzCore \
   -framework Foundation \
   -framework CoreGraphics \
-  -framework AudioToolbox \
-  -lc++ \
-  -ldl \
-  $SOURCES \
-  -install_name @rpath/Lucky77.dylib \
+  Tweak.mm \
   -o build/Lucky77.dylib
 
-if [ -f "build/Lucky77.dylib" ]; then
-    echo "✅ Built: build/Lucky77.dylib"
-    file build/Lucky77.dylib
-    ls -la build/
-else
-    echo "❌ Build failed!"
-    exit 1
-fi
+echo "✅ Built: build/Lucky77.dylib"
