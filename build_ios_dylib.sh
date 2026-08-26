@@ -31,7 +31,6 @@ SOURCES=$(find Sources -name "*.m" -o -name "*.mm" | tr '\n' ' ')
   -framework Foundation \
   -framework CoreGraphics \
   -ldl \
-  -lsubstrate \
   $SOURCES \
   -install_name @rpath/Lucky77.dylib \
   -o build/Lucky77.dylib
