@@ -106,13 +106,16 @@ BOOL g_triggerbot = NO;
 @property (nonatomic, assign) BOOL isDragging;
 @property (nonatomic, assign) CGPoint dragOffset;
 @property (nonatomic, assign) BOOL menuVisible;
+@property (nonatomic, strong) NSArray *menuItems;
+@property (nonatomic, strong) NSArray *menuKeys;
 @end
 
 @implementation L77MenuViewController
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.view.backgroundColor = Lucky77Theme.background;
+    self.view.backgroundColor = [UIColor clearColor];
+    self.modalPresentationStyle = UIModalPresentationOverFullScreen;
     self.menuVisible = NO;
     
     static dispatch_once_t onceToken;
@@ -126,10 +129,16 @@ BOOL g_triggerbot = NO;
     [self startFPS];
     [self updateStatus];
     
-    // Добавляем тройной тап как запасной способ вызова
+    // Тройной тап для вызова меню
     UITapGestureRecognizer *tripleTap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(toggleMenu)];
     tripleTap.numberOfTapsRequired = 3;
     [self.view addGestureRecognizer:tripleTap];
+    
+    // Двойной тап двумя пальцами как альтернатива
+    UITapGestureRecognizer *twoFingerDoubleTap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(toggleMenu)];
+    twoFingerDoubleTap.numberOfTapsRequired = 2;
+    twoFingerDoubleTap.numberOfTouchesRequired = 2;
+    [self.view addGestureRecognizer:twoFingerDoubleTap];
 }
 
 - (void)dealloc {
@@ -147,9 +156,9 @@ BOOL g_triggerbot = NO;
     self.launcherButton.layer.shadowColor = Lucky77Theme.purpleGlow.CGColor;
     self.launcherButton.layer.shadowOpacity = 0.4;
     self.launcherButton.layer.shadowRadius = 14;
-    [self.launcherButton setTitle:@"77" forState:UIControlStateNormal];
+    [self.launcherButton setTitle:@"⚡" forState:UIControlStateNormal];
     [self.launcherButton setTitleColor:Lucky77Theme.purpleGlow forState:UIControlStateNormal];
-    self.launcherButton.titleLabel.font = [UIFont fontWithName:@"Helvetica-LightOblique" size:24] ?: [UIFont systemFontOfSize:24 weight:UIFontWeightBold];
+    self.launcherButton.titleLabel.font = [UIFont systemFontOfSize:28 weight:UIFontWeightBold];
     [self.launcherButton addTarget:self action:@selector(toggleMenu) forControlEvents:UIControlEventTouchUpInside];
     
     UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(dragLauncher:)];
@@ -160,7 +169,7 @@ BOOL g_triggerbot = NO;
     [NSLayoutConstraint activateConstraints:@[
         [self.launcherButton.leadingAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.leadingAnchor constant:12],
         [self.launcherButton.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:12],
-        [self.launcherButton.widthAnchor constraintEqualToConstant:66],
+        [self.launcherButton.widthAnchor constraintEqualToConstant:48],
         [self.launcherButton.heightAnchor constraintEqualToConstant:48],
     ]];
 }
@@ -183,7 +192,7 @@ BOOL g_triggerbot = NO;
 - (void)buildMenu {
     self.menuCard = [UIView new];
     self.menuCard.translatesAutoresizingMaskIntoConstraints = NO;
-    self.menuCard.backgroundColor = Lucky77Theme.panel;
+    self.menuCard.backgroundColor = [Lucky77Theme.panel colorWithAlphaComponent:0.92];
     self.menuCard.layer.cornerRadius = 20;
     self.menuCard.layer.borderWidth = 1;
     self.menuCard.layer.borderColor = Lucky77Theme.border.CGColor;
@@ -194,7 +203,7 @@ BOOL g_triggerbot = NO;
     [self.view addSubview:self.menuCard];
     
     [NSLayoutConstraint activateConstraints:@[
-        [self.menuCard.leadingAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.leadingAnchor constant:90],
+        [self.menuCard.leadingAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.leadingAnchor constant:80],
         [self.menuCard.trailingAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.trailingAnchor constant:-20],
         [self.menuCard.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:18],
         [self.menuCard.bottomAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.bottomAnchor constant:-18],
@@ -219,8 +228,8 @@ BOOL g_triggerbot = NO;
     
     UILabel *logo = [UILabel new];
     logo.translatesAutoresizingMaskIntoConstraints = NO;
-    logo.text = @"77";
-    logo.font = [UIFont fontWithName:@"Helvetica-LightOblique" size:32] ?: [UIFont systemFontOfSize:32 weight:UIFontWeightBold];
+    logo.text = @"⚡";
+    logo.font = [UIFont systemFontOfSize:32 weight:UIFontWeightBold];
     logo.textColor = Lucky77Theme.purpleGlow;
     logo.layer.shadowColor = Lucky77Theme.purpleGlow.CGColor;
     logo.layer.shadowOpacity = 0.7;
@@ -274,10 +283,10 @@ BOOL g_triggerbot = NO;
     nav.spacing = 7;
     [sidebar addSubview:nav];
     
+    self.menuItems = @[@"AIMBOT", @"ESP", @"RADAR", @"INFO"];
     NSArray *sections = @[@"AIM", @"VISUALS", @"MISC", @"STATUS"];
-    NSArray *items = @[@"AIMBOT", @"ESP", @"RADAR", @"INFO"];
     
-    for (NSInteger i = 0; i < items.count; i++) {
+    for (NSInteger i = 0; i < self.menuItems.count; i++) {
         UILabel *sec = [UILabel new];
         sec.text = sections[i];
         sec.font = [Lucky77Theme bodyFont:11];
@@ -286,12 +295,13 @@ BOOL g_triggerbot = NO;
         
         UIButton *b = [UIButton buttonWithType:UIButtonTypeSystem];
         b.contentHorizontalAlignment = UIControlContentHorizontalAlignmentLeft;
-        [b setTitle:[NSString stringWithFormat:@"   %@", items[i]] forState:UIControlStateNormal];
+        [b setTitle:[NSString stringWithFormat:@"   %@", self.menuItems[i]] forState:UIControlStateNormal];
         [b setTitleColor:Lucky77Theme.textPrimary forState:UIControlStateNormal];
         b.titleLabel.font = [Lucky77Theme bodyFont:14];
         b.layer.cornerRadius = 8;
         b.backgroundColor = (i == 0) ? [Lucky77Theme.purpleDark colorWithAlphaComponent:0.9] : UIColor.clearColor;
         [b.heightAnchor constraintEqualToConstant:40].active = YES;
+        b.tag = i;
         [b addTarget:self action:@selector(navTapped:) forControlEvents:UIControlEventTouchUpInside];
         [nav addArrangedSubview:b];
     }
@@ -308,8 +318,9 @@ BOOL g_triggerbot = NO;
     self.contentStack.spacing = 16;
     [scroll addSubview:self.contentStack];
     
-    UIView *content = [self makeContentPanel];
-    [self.contentStack addArrangedSubview:content];
+    // Дефолтный контент - AIMBOT
+    UIView *defaultContent = [self makeContentForTab:0];
+    [self.contentStack addArrangedSubview:defaultContent];
     
     [NSLayoutConstraint activateConstraints:@[
         [divider.leadingAnchor constraintEqualToAnchor:self.menuCard.leadingAnchor],
@@ -320,7 +331,7 @@ BOOL g_triggerbot = NO;
         [sidebar.leadingAnchor constraintEqualToAnchor:self.menuCard.leadingAnchor constant:12],
         [sidebar.topAnchor constraintEqualToAnchor:divider.bottomAnchor constant:12],
         [sidebar.bottomAnchor constraintEqualToAnchor:self.menuCard.bottomAnchor constant:-12],
-        [sidebar.widthAnchor constraintEqualToConstant:190],
+        [sidebar.widthAnchor constraintEqualToConstant:160],
         
         [nav.leadingAnchor constraintEqualToAnchor:sidebar.leadingAnchor constant:14],
         [nav.trailingAnchor constraintEqualToAnchor:sidebar.trailingAnchor constant:-14],
@@ -339,48 +350,103 @@ BOOL g_triggerbot = NO;
     ]];
 }
 
-// ============ КОНТЕНТ МЕНЮ ============
-- (UIView *)makeContentPanel {
-    UIView *panel = [UIView new];
-    panel.backgroundColor = [Lucky77Theme.panelAlt colorWithAlphaComponent:0.7];
-    panel.layer.cornerRadius = 14;
-    panel.layer.borderWidth = 1;
-    panel.layer.borderColor = Lucky77Theme.border.CGColor;
-    
-    UIStackView *row = [UIStackView new];
-    row.translatesAutoresizingMaskIntoConstraints = NO;
-    row.axis = UILayoutConstraintAxisHorizontal;
-    row.spacing = 22;
-    row.distribution = UIStackViewDistributionFillEqually;
-    [panel addSubview:row];
-    
-    [row addArrangedSubview:[self makeColumn:@"AIMBOT"
-                                      items:@[@"ENABLE AIMBOT", @"TRIGGERBOT", @"SMOOTH AIM", @"VISIBLE CHECK", @"FOV SLIDER"]
-                                      keys:@[@"aimbot", @"trigger", @"smooth", @"visible", @"fov"]]];
-    
-    [row addArrangedSubview:[self makeColumn:@"VISUALS"
-                                      items:@[@"ESP BOX", @"ESP NAME", @"ESP HEALTH", @"SNAP LINES", @"RADAR HACK"]
-                                      keys:@[@"esp", @"name", @"health", @"lines", @"radar"]]];
-    
-    [NSLayoutConstraint activateConstraints:@[
-        [panel.heightAnchor constraintGreaterThanOrEqualToConstant:440],
-        [row.leadingAnchor constraintEqualToAnchor:panel.leadingAnchor constant:22],
-        [row.trailingAnchor constraintEqualToAnchor:panel.trailingAnchor constant:-22],
-        [row.topAnchor constraintEqualToAnchor:panel.topAnchor constant:22],
-        [row.bottomAnchor constraintLessThanOrEqualToAnchor:panel.bottomAnchor constant:-22],
-    ]];
-    
-    return panel;
+// ============ КОНТЕНТ ДЛЯ ВКЛАДОК ============
+- (UIView *)makeContentForTab:(NSInteger)tabIndex {
+    switch (tabIndex) {
+        case 0:
+            return [self makeAimbotContent];
+        case 1:
+            return [self makeESPContent];
+        case 2:
+            return [self makeRadarContent];
+        case 3:
+            return [self makeInfoContent];
+        default:
+            return [self makeAimbotContent];
+    }
 }
 
+- (UIView *)makeAimbotContent {
+    return [self makeColumn:@"AIMBOT"
+                     items:@[@"ENABLE AIMBOT", @"TRIGGERBOT", @"SMOOTH AIM", @"VISIBLE CHECK", @"FOV SLIDER"]
+                     keys:@[@"aimbot", @"trigger", @"smooth", @"visible", @"fov"]];
+}
+
+- (UIView *)makeESPContent {
+    return [self makeColumn:@"ESP SETTINGS"
+                     items:@[@"ESP BOX", @"ESP NAME", @"ESP HEALTH", @"SNAP LINES", @"RADAR HACK"]
+                     keys:@[@"esp", @"name", @"health", @"lines", @"radar"]];
+}
+
+- (UIView *)makeRadarContent {
+    return [self makeColumn:@"RADAR & MISC"
+                     items:@[@"SHOW RADAR", @"ENEMY SPOTS", @"BOMB TIMER", @"NO RECOIL", @"UNLIMITED AMMO"]
+                     keys:@[@"radar", @"spots", @"bomb", @"recoil", @"ammo"]];
+}
+
+- (UIView *)makeInfoContent {
+    UIView *info = [UIView new];
+    info.backgroundColor = [Lucky77Theme.panelAlt colorWithAlphaComponent:0.7];
+    info.layer.cornerRadius = 14;
+    info.layer.borderWidth = 1;
+    info.layer.borderColor = Lucky77Theme.border.CGColor;
+    
+    UILabel *title = [UILabel new];
+    title.translatesAutoresizingMaskIntoConstraints = NO;
+    title.text = @"⚡ Lucky77 v2.0\nStandoff 2 iOS\n0.39.2";
+    title.numberOfLines = 0;
+    title.textAlignment = NSTextAlignmentCenter;
+    title.font = [Lucky77Theme titleFont:18];
+    title.textColor = Lucky77Theme.textPrimary;
+    [info addSubview:title];
+    
+    UILabel *status = [UILabel new];
+    status.translatesAutoresizingMaskIntoConstraints = NO;
+    uintptr_t base = [MemoryUtils getGameBase];
+    status.text = base ? [NSString stringWithFormat:@"Base: 0x%lX", (unsigned long)base] : @"Game not found";
+    status.textAlignment = NSTextAlignmentCenter;
+    status.font = [Lucky77Theme bodyFont:13];
+    status.textColor = Lucky77Theme.textSecondary;
+    [info addSubview:status];
+    
+    UILabel *hint = [UILabel new];
+    hint.translatesAutoresizingMaskIntoConstraints = NO;
+    hint.text = @"Triple tap to toggle menu";
+    hint.textAlignment = NSTextAlignmentCenter;
+    hint.font = [Lucky77Theme bodyFont:12];
+    hint.textColor = Lucky77Theme.textSecondary;
+    [info addSubview:hint];
+    
+    [NSLayoutConstraint activateConstraints:@[
+        [title.centerXAnchor constraintEqualToAnchor:info.centerXAnchor],
+        [title.centerYAnchor constraintEqualToAnchor:info.centerYAnchor constant:-30],
+        [status.centerXAnchor constraintEqualToAnchor:info.centerXAnchor],
+        [status.topAnchor constraintEqualToAnchor:title.bottomAnchor constant:12],
+        [hint.centerXAnchor constraintEqualToAnchor:info.centerXAnchor],
+        [hint.topAnchor constraintEqualToAnchor:status.bottomAnchor constant:8],
+        [info.heightAnchor constraintGreaterThanOrEqualToConstant:220],
+    ]];
+    
+    return info;
+}
+
+// ============ ОБЩИЙ КОМПОНЕНТ КОЛОНКИ ============
 - (UIView *)makeColumn:(NSString *)title items:(NSArray<NSString *> *)items keys:(NSArray<NSString *> *)keys {
+    UIView *container = [UIView new];
+    container.backgroundColor = [Lucky77Theme.panelAlt colorWithAlphaComponent:0.7];
+    container.layer.cornerRadius = 14;
+    container.layer.borderWidth = 1;
+    container.layer.borderColor = Lucky77Theme.border.CGColor;
+    
     UIStackView *stack = [UIStackView new];
+    stack.translatesAutoresizingMaskIntoConstraints = NO;
     stack.axis = UILayoutConstraintAxisVertical;
     stack.spacing = 8;
+    [container addSubview:stack];
     
     UILabel *heading = [UILabel new];
     heading.text = title;
-    heading.font = [Lucky77Theme titleFont:14];
+    heading.font = [Lucky77Theme titleFont:16];
     heading.textColor = Lucky77Theme.purpleGlow;
     [stack addArrangedSubview:heading];
     
@@ -394,47 +460,111 @@ BOOL g_triggerbot = NO;
         [stack addArrangedSubview:t];
     }
     
-    // SLIDER
-    UILabel *sliderLabel = [UILabel new];
-    sliderLabel.text = @"AIM FOV";
-    sliderLabel.font = [Lucky77Theme bodyFont:12];
-    sliderLabel.textColor = Lucky77Theme.textSecondary;
-    [stack addArrangedSubview:sliderLabel];
-    
-    UISlider *slider = [UISlider new];
-    slider.minimumValue = 0;
-    slider.maximumValue = 360;
-    slider.value = 90;
-    slider.minimumTrackTintColor = Lucky77Theme.purple;
-    slider.maximumTrackTintColor = [UIColor colorWithWhite:0.35 alpha:0.35];
-    slider.thumbTintColor = Lucky77Theme.purpleGlow;
-    [stack addArrangedSubview:slider];
+    // SLIDER для FOV (только в AIMBOT)
+    if ([title isEqualToString:@"AIMBOT"]) {
+        UILabel *sliderLabel = [UILabel new];
+        sliderLabel.text = @"AIM FOV: 90°";
+        sliderLabel.font = [Lucky77Theme bodyFont:12];
+        sliderLabel.textColor = Lucky77Theme.textSecondary;
+        [stack addArrangedSubview:sliderLabel];
+        
+        UISlider *slider = [UISlider new];
+        slider.minimumValue = 0;
+        slider.maximumValue = 360;
+        slider.value = 90;
+        slider.minimumTrackTintColor = Lucky77Theme.purple;
+        slider.maximumTrackTintColor = [UIColor colorWithWhite:0.35 alpha:0.35];
+        slider.thumbTintColor = Lucky77Theme.purpleGlow;
+        [slider addTarget:self action:@selector(fovChanged:) forControlEvents:UIControlEventValueChanged];
+        [stack addArrangedSubview:slider];
+    }
     
     UIView *spacer = [UIView new];
-    [spacer.heightAnchor constraintEqualToConstant:50].active = YES;
+    [spacer.heightAnchor constraintEqualToConstant:20].active = YES;
     [stack addArrangedSubview:spacer];
     
-    return stack;
+    [NSLayoutConstraint activateConstraints:@[
+        [stack.leadingAnchor constraintEqualToAnchor:container.leadingAnchor constant:18],
+        [stack.trailingAnchor constraintEqualToAnchor:container.trailingAnchor constant:-18],
+        [stack.topAnchor constraintEqualToAnchor:container.topAnchor constant:18],
+        [stack.bottomAnchor constraintLessThanOrEqualToAnchor:container.bottomAnchor constant:-18],
+        [container.heightAnchor constraintGreaterThanOrEqualToConstant:300],
+    ]];
+    
+    return container;
+}
+
+// ============ ОБРАБОТЧИК FOV ============
+- (void)fovChanged:(UISlider *)slider {
+    // Находим лейбл с FOV в родительском стеке
+    UIStackView *stack = (UIStackView *)slider.superview;
+    for (UIView *view in stack.arrangedSubviews) {
+        if ([view isKindOfClass:[UILabel class]]) {
+            UILabel *label = (UILabel *)view;
+            if ([label.text hasPrefix:@"AIM FOV:"]) {
+                label.text = [NSString stringWithFormat:@"AIM FOV: %.0f°", slider.value];
+                break;
+            }
+        }
+    }
+    // TODO: сохранять значение FOV в глобальную переменную
+}
+
+// ============ ПЕРЕКЛЮЧЕНИЕ ВКЛАДОК ============
+- (void)navTapped:(UIButton *)sender {
+    // Сбрасываем фон у всех кнопок
+    UIStackView *navStack = (UIStackView *)sender.superview;
+    for (UIView *v in navStack.arrangedSubviews) {
+        if ([v isKindOfClass:[UIButton class]]) {
+            UIButton *b = (UIButton *)v;
+            b.backgroundColor = UIColor.clearColor;
+        }
+    }
+    // Подсвечиваем нажатую
+    sender.backgroundColor = [Lucky77Theme.purpleDark colorWithAlphaComponent:0.9];
+    
+    // Меняем контент
+    NSInteger tabIndex = sender.tag;
+    [self switchToTab:tabIndex];
+}
+
+- (void)switchToTab:(NSInteger)tabIndex {
+    // Очищаем текущий контент
+    for (UIView *view in self.contentStack.arrangedSubviews) {
+        [self.contentStack removeArrangedSubview:view];
+        [view removeFromSuperview];
+    }
+    
+    // Добавляем новый контент
+    UIView *newContent = [self makeContentForTab:tabIndex];
+    [self.contentStack addArrangedSubview:newContent];
 }
 
 // ============ INTRO АНИМАЦИЯ ============
 - (void)buildIntro {
     self.intro = [UIView new];
     self.intro.translatesAutoresizingMaskIntoConstraints = NO;
-    self.intro.backgroundColor = [Lucky77Theme.background colorWithAlphaComponent:0.97];
+    self.intro.backgroundColor = [Lucky77Theme.background colorWithAlphaComponent:0.95];
     self.intro.layer.cornerRadius = 20;
     self.intro.alpha = 0;
     [self.menuCard addSubview:self.intro];
     
     UILabel *label = [UILabel new];
     label.translatesAutoresizingMaskIntoConstraints = NO;
-    label.text = @"Lucky77";
-    label.font = [UIFont fontWithName:@"Helvetica-LightOblique" size:52] ?: [UIFont systemFontOfSize:52 weight:UIFontWeightBold];
+    label.text = @"⚡";
+    label.font = [UIFont systemFontOfSize:64 weight:UIFontWeightBold];
     label.textColor = Lucky77Theme.purpleGlow;
     label.layer.shadowColor = Lucky77Theme.purpleGlow.CGColor;
     label.layer.shadowOpacity = 0.9;
     label.layer.shadowRadius = 20;
     [self.intro addSubview:label];
+    
+    UILabel *title = [UILabel new];
+    title.translatesAutoresizingMaskIntoConstraints = NO;
+    title.text = @"Lucky77";
+    title.font = [Lucky77Theme titleFont:28];
+    title.textColor = Lucky77Theme.textPrimary;
+    [self.intro addSubview:title];
     
     self.statusLabel = [UILabel new];
     self.statusLabel.translatesAutoresizingMaskIntoConstraints = NO;
@@ -449,9 +579,11 @@ BOOL g_triggerbot = NO;
         [self.intro.topAnchor constraintEqualToAnchor:self.menuCard.topAnchor],
         [self.intro.bottomAnchor constraintEqualToAnchor:self.menuCard.bottomAnchor],
         [label.centerXAnchor constraintEqualToAnchor:self.intro.centerXAnchor],
-        [label.centerYAnchor constraintEqualToAnchor:self.intro.centerYAnchor constant:-20],
+        [label.centerYAnchor constraintEqualToAnchor:self.intro.centerYAnchor constant:-30],
+        [title.centerXAnchor constraintEqualToAnchor:self.intro.centerXAnchor],
+        [title.topAnchor constraintEqualToAnchor:label.bottomAnchor constant:8],
         [self.statusLabel.centerXAnchor constraintEqualToAnchor:self.intro.centerXAnchor],
-        [self.statusLabel.topAnchor constraintEqualToAnchor:label.bottomAnchor constant:12],
+        [self.statusLabel.topAnchor constraintEqualToAnchor:title.bottomAnchor constant:12],
     ]];
 }
 
@@ -466,6 +598,7 @@ BOOL g_triggerbot = NO;
 // ============ УПРАВЛЕНИЕ МЕНЮ ============
 - (void)toggleMenu {
     if (self.menuCard.hidden) {
+        // Показываем меню
         self.menuCard.hidden = NO;
         self.menuCard.alpha = 0;
         self.intro.alpha = 0;
@@ -479,13 +612,14 @@ BOOL g_triggerbot = NO;
         [UIView animateWithDuration:0.55 animations:^{
             self.intro.alpha = 1;
         } completion:^(BOOL finished) {
-            [UIView animateWithDuration:0.55 delay:1.45 options:UIViewAnimationOptionCurveEaseInOut animations:^{
+            [UIView animateWithDuration:0.55 delay:1.0 options:UIViewAnimationOptionCurveEaseInOut animations:^{
                 self.intro.alpha = 0;
             } completion:^(BOOL finished2) {
                 self.intro.hidden = YES;
             }];
         }];
     } else {
+        // Скрываем меню
         [UIView animateWithDuration:0.22 animations:^{
             self.menuCard.alpha = 0;
         } completion:^(BOOL finished) {
@@ -493,16 +627,6 @@ BOOL g_triggerbot = NO;
             self.menuCard.alpha = 1;
         }];
     }
-}
-
-- (void)navTapped:(UIButton *)sender {
-    for (UIView *v in sender.superview.subviews) {
-        if ([v isKindOfClass:[UIButton class]]) {
-            UIButton *b = (UIButton *)v;
-            b.backgroundColor = UIColor.clearColor;
-        }
-    }
-    sender.backgroundColor = [Lucky77Theme.purpleDark colorWithAlphaComponent:0.9];
 }
 
 // ============ FPS СЧЁТЧИК ============
@@ -530,7 +654,7 @@ BOOL g_triggerbot = NO;
 // ============ ЭКСПОРТИРУЕМЫЕ ФУНКЦИИ ============
 UIViewController *Lucky77CreateMenuViewController(void) {
     L77MenuViewController *vc = [L77MenuViewController new];
-    vc.modalPresentationStyle = UIModalPresentationFullScreen;
+    vc.modalPresentationStyle = UIModalPresentationOverFullScreen;
     return vc;
 }
 
@@ -539,14 +663,11 @@ void Lucky77PresentMenu(UIViewController *presenter) {
     [presenter presentViewController:Lucky77CreateMenuViewController() animated:YES completion:nil];
 }
 
-// ============ ТОЧКА ВХОДА С ПРИНУДИТЕЛЬНЫМ ВЫЗОВОМ ============
+// ============ ТОЧКА ВХОДА ============
 __attribute__((constructor)) void init() {
-    // Задержка для полной загрузки игры
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-        // Пробуем получить окно через windows.firstObject
         UIWindow *window = [UIApplication sharedApplication].windows.firstObject;
         if (!window) {
-            // Fallback: ищем через connectedScenes
             if (@available(iOS 13.0, *)) {
                 NSSet *scenes = [UIApplication sharedApplication].connectedScenes;
                 for (UIScene *scene in scenes) {
