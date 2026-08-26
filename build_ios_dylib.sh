@@ -20,8 +20,13 @@ mkdir -p build
 # Сборка всех .m и .mm файлов из папки Sources
 SOURCES=$(find Sources -name "*.m" -o -name "*.mm" | tr '\n' ' ')
 
+# Добавляем флаги для C++ поддержки и исключений
 "$CLANG" \
   -fobjc-arc \
+  -fobjc-weak \
+  -fcxx-exceptions \
+  -fexceptions \
+  -stdlib=libc++ \
   -isysroot "$SDK" \
   -miphoneos-version-min=$MIN_VERSION \
   -arch $ARCH \
@@ -30,6 +35,7 @@ SOURCES=$(find Sources -name "*.m" -o -name "*.mm" | tr '\n' ' ')
   -framework QuartzCore \
   -framework Foundation \
   -framework CoreGraphics \
+  -lc++ \
   -ldl \
   $SOURCES \
   -install_name @rpath/Lucky77.dylib \
