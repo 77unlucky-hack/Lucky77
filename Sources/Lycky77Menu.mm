@@ -3,7 +3,6 @@
 #import "HooksManager.h"
 #import "MemoryUtils.h"
 #import <QuartzCore/QuartzCore.h>
-#import <AudioToolbox/AudioToolbox.h>
 
 // ============ ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ============
 BOOL g_espEnabled = NO;
@@ -14,15 +13,6 @@ BOOL g_unlimitedAmmo = NO;
 BOOL g_triggerbot = NO;
 NSInteger g_fpsLimit = 60;
 NSInteger g_language = 0;
-
-static void PlayToggleSound(BOOL isOn) {
-    @try {
-        SystemSoundID soundID = isOn ? 1103 : 1104;
-        AudioServicesPlaySystemSound(soundID);
-    } @catch (NSException *exception) {
-        // Игнорируем ошибки звука
-    }
-}
 
 // ============ ЛОКАЛИЗАЦИЯ ============
 static NSDictionary *enStrings = nil;
@@ -132,7 +122,6 @@ static NSString* L(NSString *key) {
 
 - (void)tap {
     self.on = !self.on;
-    PlayToggleSound(self.on);
     
     [UIView animateWithDuration:0.18 animations:^{
         self.box.backgroundColor = self.on ? Lucky77Theme.purple : UIColor.clearColor;
@@ -157,11 +146,6 @@ static NSString* L(NSString *key) {
 // ============ ГЛАВНЫЙ КОНТРОЛЛЕР ============
 @interface L77MenuViewController : UIViewController
 @property (nonatomic, strong) UIView *menuCard;
-@property (nonatomic, strong) UILabel *fpsLabel;
-@property (nonatomic, strong) CADisplayLink *displayLink;
-@property (nonatomic, assign) CFTimeInterval lastTimestamp;
-@property (nonatomic, assign) NSInteger frameCount;
-@property (nonatomic, strong) UIStackView *contentStack;
 @property (nonatomic, strong) UIButton *launcherButton;
 @property (nonatomic, assign) BOOL isDragging;
 @property (nonatomic, assign) CGPoint dragOffset;
@@ -170,6 +154,7 @@ static NSString* L(NSString *key) {
 @property (nonatomic, strong) UIScrollView *sidebarScroll;
 @property (nonatomic, strong) UIStackView *navStack;
 @property (nonatomic, strong) NSArray *navButtons;
+@property (nonatomic, strong) UIStackView *contentStack;
 @end
 
 @implementation L77MenuViewController
@@ -177,7 +162,6 @@ static NSString* L(NSString *key) {
 - (void)viewDidLoad {
     [super viewDidLoad];
     
-    // Безопасные настройки
     self.view.backgroundColor = [UIColor clearColor];
     self.view.opaque = NO;
     self.modalPresentationStyle = UIModalPresentationOverFullScreen;
@@ -185,22 +169,12 @@ static NSString* L(NSString *key) {
     self.config = [NSMutableDictionary dictionary];
     [self loadConfig];
     
-    // Хуки временно отключены для теста
-    // static dispatch_once_t onceToken;
-    // dispatch_once(&onceToken, ^{
-    //     [HooksManager installHooks];
-    // });
-    
     [self buildLauncherButton];
     [self buildMenu];
-    [self startFPS];
 }
 
 - (void)dealloc {
-    if (self.displayLink) {
-        [self.displayLink invalidate];
-        self.displayLink = nil;
-    }
+    // Ничего не делаем
 }
 
 // ============ КНОПКА-ЛАУНЧЕР ============
@@ -268,12 +242,6 @@ static NSString* L(NSString *key) {
     header.translatesAutoresizingMaskIntoConstraints = NO;
     [self.menuCard addSubview:header];
     
-    self.fpsLabel = [UILabel new];
-    self.fpsLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    self.fpsLabel.text = @"-- FPS";
-    self.fpsLabel.font = [Lucky77Theme bodyFont:11];
-    self.fpsLabel.textColor = Lucky77Theme.purpleGlow;
-    
     UILabel *logo = [UILabel new];
     logo.translatesAutoresizingMaskIntoConstraints = NO;
     logo.text = @"⚡";
@@ -287,7 +255,6 @@ static NSString* L(NSString *key) {
     close.titleLabel.font = [Lucky77Theme titleFont:16];
     [close addTarget:self action:@selector(toggleMenu) forControlEvents:UIControlEventTouchUpInside];
     
-    [header addSubview:self.fpsLabel];
     [header addSubview:logo];
     [header addSubview:close];
     
@@ -296,8 +263,6 @@ static NSString* L(NSString *key) {
         [header.trailingAnchor constraintEqualToAnchor:self.menuCard.trailingAnchor],
         [header.topAnchor constraintEqualToAnchor:self.menuCard.topAnchor],
         [header.heightAnchor constraintEqualToConstant:36],
-        [self.fpsLabel.leadingAnchor constraintEqualToAnchor:header.leadingAnchor constant:12],
-        [self.fpsLabel.centerYAnchor constraintEqualToAnchor:header.centerYAnchor],
         [logo.centerXAnchor constraintEqualToAnchor:header.centerXAnchor],
         [logo.centerYAnchor constraintEqualToAnchor:header.centerYAnchor],
         [close.trailingAnchor constraintEqualToAnchor:header.trailingAnchor constant:-10],
@@ -455,23 +420,6 @@ static NSString* L(NSString *key) {
     [langSeg addTarget:self action:@selector(languageChanged:) forControlEvents:UIControlEventValueChanged];
     [stack addArrangedSubview:langSeg];
     
-    UILabel *fpsLabel = [UILabel new];
-    fpsLabel.text = L(@"fps_limit");
-    fpsLabel.font = [Lucky77Theme bodyFont:11];
-    fpsLabel.textColor = Lucky77Theme.textSecondary;
-    [stack addArrangedSubview:fpsLabel];
-    
-    UISegmentedControl *fpsSeg = [[UISegmentedControl alloc] initWithItems:@[@"30", @"60", @"90", @"120"]];
-    NSInteger index = 0;
-    if (g_fpsLimit == 30) index = 0;
-    else if (g_fpsLimit == 60) index = 1;
-    else if (g_fpsLimit == 90) index = 2;
-    else if (g_fpsLimit == 120) index = 3;
-    fpsSeg.selectedSegmentIndex = index;
-    fpsSeg.tintColor = Lucky77Theme.purple;
-    [fpsSeg addTarget:self action:@selector(fpsLimitChanged:) forControlEvents:UIControlEventValueChanged];
-    [stack addArrangedSubview:fpsSeg];
-    
     UIStackView *configButtons = [UIStackView new];
     configButtons.axis = UILayoutConstraintAxisHorizontal;
     configButtons.spacing = 6;
@@ -556,39 +504,10 @@ static NSString* L(NSString *key) {
     [self.contentStack addArrangedSubview:newContent];
 }
 
-// ============ FPS ============
-- (void)startFPS {
-    self.displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(tick:)];
-    self.displayLink.preferredFramesPerSecond = g_fpsLimit;
-    [self.displayLink addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
-}
-
-- (void)tick:(CADisplayLink *)link {
-    if (!self.fpsLabel) return;
-    
-    if (self.lastTimestamp == 0) {
-        self.lastTimestamp = link.timestamp;
-    }
-    self.frameCount += 1;
-    CFTimeInterval elapsed = link.timestamp - self.lastTimestamp;
-    if (elapsed >= 0.5) {
-        double fps = self.frameCount / elapsed;
-        self.fpsLabel.text = [NSString stringWithFormat:@"%.0f %@", fps, L(@"fps")];
-        self.frameCount = 0;
-        self.lastTimestamp = link.timestamp;
-    }
-}
-
 // ============ НАСТРОЙКИ ============
 - (void)languageChanged:(UISegmentedControl *)sender {
     g_language = sender.selectedSegmentIndex;
     [self refreshSettingsTab];
-}
-
-- (void)fpsLimitChanged:(UISegmentedControl *)sender {
-    NSArray *values = @[@30, @60, @90, @120];
-    g_fpsLimit = [values[sender.selectedSegmentIndex] integerValue];
-    self.displayLink.preferredFramesPerSecond = g_fpsLimit;
 }
 
 - (void)refreshSettingsTab {
@@ -614,7 +533,6 @@ static NSString* L(NSString *key) {
         @"recoil": @(g_noRecoil),
         @"ammo": @(g_unlimitedAmmo),
         @"trigger": @(g_triggerbot),
-        @"fps": @(g_fpsLimit),
         @"lang": @(g_language)
     };
     [config writeToFile:[self configPath] atomically:YES];
@@ -633,7 +551,6 @@ static NSString* L(NSString *key) {
         g_noRecoil = [config[@"recoil"] boolValue];
         g_unlimitedAmmo = [config[@"ammo"] boolValue];
         g_triggerbot = [config[@"trigger"] boolValue];
-        g_fpsLimit = [config[@"fps"] integerValue];
         g_language = [config[@"lang"] integerValue];
         
         UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"✅" message:g_language == 0 ? @"Config loaded!" : @"Конфиг загружен!" preferredStyle:UIAlertControllerStyleAlert];
@@ -662,13 +579,12 @@ void Lucky77PresentMenu(UIViewController *presenter) {
     [presenter presentViewController:Lucky77CreateMenuViewController() animated:NO completion:nil];
 }
 
-// ============ ТОЧКА ВХОДА (С ЛОГАМИ) ============
+// ============ ТОЧКА ВХОДА ============
 __attribute__((constructor)) void init() {
     NSLog(@"[Lucky77] ✅ INIT CALLED!");
     
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
         UIWindow *window = nil;
-        
         if (@available(iOS 13.0, *)) {
             for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
                 if ([scene isKindOfClass:[UIWindowScene class]] && scene.activationState == UISceneActivationStateForegroundActive) {
@@ -682,14 +598,10 @@ __attribute__((constructor)) void init() {
                 }
             }
         }
-        
         if (!window) {
             window = [UIApplication sharedApplication].windows.firstObject;
         }
-        
         UIViewController *root = window.rootViewController;
-        NSLog(@"[Lucky77] Found root: %@", root);
-        
         if (root) {
             Lucky77PresentMenu(root);
             NSLog(@"[Lucky77] ✅ Menu presented!");
