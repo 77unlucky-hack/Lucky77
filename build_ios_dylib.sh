@@ -10,10 +10,12 @@ MIN_VERSION="15.0"
 
 mkdir -p build
 
-# Компилируем Sources/Lycky77Menu.mm (исправлено название файла)
 "$CLANG" \
   -fobjc-arc \
   -fobjc-weak \
+  -fcxx-exceptions \
+  -fexceptions \
+  -stdlib=libc++ \
   -isysroot "$SDK" \
   -miphoneos-version-min=$MIN_VERSION \
   -arch $ARCH \
@@ -23,6 +25,8 @@ mkdir -p build
   -framework QuartzCore \
   -framework Foundation \
   -framework CoreGraphics \
+  -lc++ \
+  -ldl \
   Sources/Lycky77Menu.mm \
   -o build/Lucky77.dylib
 
