@@ -1,7 +1,6 @@
 #!/bin/bash
 set -euo pipefail
 
-# Определяем SDK
 if [[ -z "${SDKROOT:-}" ]]; then
     SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
 else
@@ -17,7 +16,6 @@ echo "📁 SDK: $SDK"
 
 mkdir -p build
 
-# Сборка всех .m и .mm файлов из папки Sources
 SOURCES=$(find Sources -name "*.m" -o -name "*.mm" | tr '\n' ' ')
 
 "$CLANG" \
