@@ -50,10 +50,6 @@ static NSString* L(NSString *key) {
             @"fps": @"FPS",
             @"game_not_found": @"Game not found",
             @"initializing": @"Initializing...",
-            @"fps_30": @"30 FPS",
-            @"fps_60": @"60 FPS",
-            @"fps_90": @"90 FPS",
-            @"fps_120": @"120 FPS",
         };
         ruStrings = @{
             @"app_name": @"Lucky77",
@@ -82,10 +78,6 @@ static NSString* L(NSString *key) {
             @"fps": @"FPS",
             @"game_not_found": @"Игра не найдена",
             @"initializing": @"Загрузка...",
-            @"fps_30": @"30 FPS",
-            @"fps_60": @"60 FPS",
-            @"fps_90": @"90 FPS",
-            @"fps_120": @"120 FPS",
         };
     });
     return g_language == 0 ? enStrings[key] : ruStrings[key];
@@ -162,7 +154,7 @@ static NSString* L(NSString *key) {
 @end
 
 // ============ ГЛАВНЫЙ КОНТРОЛЛЕР ============
-@interface L77MenuViewController : UIViewController <UIScrollViewDelegate>
+@interface L77MenuViewController : UIViewController
 @property (nonatomic, strong) UIView *menuCard;
 @property (nonatomic, strong) UIView *introView;
 @property (nonatomic, strong) UIImageView *logoView;
@@ -323,7 +315,7 @@ static NSString* L(NSString *key) {
     divider.backgroundColor = Lucky77Theme.border;
     [self.menuCard addSubview:divider];
     
-    // SIDEBAR с прокруткой
+    // SIDEBAR
     self.sidebarScroll = [UIScrollView new];
     self.sidebarScroll.translatesAutoresizingMaskIntoConstraints = NO;
     self.sidebarScroll.backgroundColor = [Lucky77Theme.background colorWithAlphaComponent:0.7];
@@ -598,15 +590,15 @@ static NSString* L(NSString *key) {
         [self.introView.heightAnchor constraintEqualToConstant:300],
     ]];
     
-    // Логотип с GitHub
+    // Логотип
     self.logoView = [UIImageView new];
     self.logoView.translatesAutoresizingMaskIntoConstraints = NO;
     self.logoView.contentMode = UIViewContentModeScaleAspectFit;
     self.logoView.layer.cornerRadius = 20;
     self.logoView.clipsToBounds = YES;
+    self.logoView.backgroundColor = Lucky77Theme.purple;
     [self.introView addSubview:self.logoView];
     
-    // Загрузка логотипа
     [self loadLogo];
     
     // Название
@@ -666,16 +658,7 @@ static NSString* L(NSString *key) {
         if (data && !error) {
             UIImage *image = [UIImage imageWithData:data];
             dispatch_async(dispatch_get_main_queue(), ^{
-                self.logoView.image = image;
-                if (!self.logoView.image) {
-                    self.logoView.backgroundColor = Lucky77Theme.purple;
-                    self.logoView.layer.cornerRadius = 20;
-                }
-            });
-        } else {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                self.logoView.backgroundColor = Lucky77Theme.purple;
-                self.logoView.layer.cornerRadius = 20;
+                if (image) self.logoView.image = image;
             });
         }
     }];
@@ -711,7 +694,6 @@ static NSString* L(NSString *key) {
         }
     }
     sender.backgroundColor = [Lucky77Theme.purpleDark colorWithAlphaComponent:0.9];
-    
     [self switchToTab:sender.tag];
 }
 
@@ -720,7 +702,6 @@ static NSString* L(NSString *key) {
         [self.contentStack removeArrangedSubview:view];
         [view removeFromSuperview];
     }
-    
     UIView *newContent = [self makeContentForTab:tabIndex];
     [self.contentStack addArrangedSubview:newContent];
 }
@@ -759,9 +740,7 @@ static NSString* L(NSString *key) {
 }
 
 - (void)refreshSettingsTab {
-    // Обновляем содержимое вкладки настроек
     [self switchToTab:2];
-    // Обновляем заголовки кнопок в навигации
     NSArray *sections = @[L(@"aimbot"), L(@"visuals"), L(@"settings")];
     for (NSInteger i = 0; i < self.navButtons.count && i < sections.count; i++) {
         UIButton *btn = self.navButtons[i];
@@ -784,9 +763,7 @@ static NSString* L(NSString *key) {
 
 - (void)openTelegram {
     NSURL *url = [NSURL URLWithString:@"https://t.me/hack77ios"];
-    if ([[UIApplication sharedApplication] canOpenURL:url]) {
-        [[UIApplication sharedApplication] openURL:url options:@{} completionHandler:nil];
-    }
+    [[UIApplication sharedApplication] openURL:url options:@{} completionHandler:nil];
 }
 
 // ============ КОНФИГИ ============
