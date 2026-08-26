@@ -1,0 +1,50 @@
+name: Build Lucky77
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Xcode
+      run: |
+        sudo xcode-select -switch /Applications/Xcode.app/Contents/Developer
+        xcodebuild -version
+        
+    - name: Install dependencies
+      run: |
+        brew install ldid
+        
+    - name: Build dylib
+      run: |
+        chmod +x build_ios_dylib.sh
+        ./build_ios_dylib.sh
+        
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Lucky77.dylib
+        path: build/Lucky77.dylib
+        
+    - name: Create release package
+      run: |
+        mkdir -p package
+        cp build/Lucky77.dylib package/
+        cp README.md package/
+        cd package
+        zip -r ../Lucky77.zip .
+        
+    - name: Upload release zip
+      uses: actions/upload-artifact@v4
+      with:
+        name: Lucky77.zip
+        path: Lucky77.zip
